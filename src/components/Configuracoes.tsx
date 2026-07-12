@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { Plus, Save, Info } from 'lucide-react';
+import { Plus, Save, Info, Pencil, X } from 'lucide-react';
 
 export const Configuracoes: React.FC = () => {
   const {
@@ -37,6 +37,35 @@ export const Configuracoes: React.FC = () => {
   const [newServiceCategory, setNewServiceCategory] = useState('Outros');
 
   const [serviceModalOpen, setServiceModalOpen] = useState(false);
+
+  // Edit service state
+  const [editingService, setEditingService] = useState<{
+    id: string; name: string; price: string; duration: string; category: string; color: string;
+  } | null>(null);
+
+  const openEditModal = (s: typeof services[0]) => {
+    setEditingService({
+      id: s.id,
+      name: s.name,
+      price: String(s.price),
+      duration: String(s.duration),
+      category: s.category,
+      color: s.color
+    });
+  };
+
+  const handleEditServiceSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingService) return;
+    updateService(editingService.id, {
+      name: editingService.name,
+      price: Number(editingService.price),
+      duration: Number(editingService.duration),
+      category: editingService.category,
+      color: editingService.color
+    });
+    setEditingService(null);
+  };
 
   const handleSaveShopDetails = (e: React.FormEvent) => {
     e.preventDefault();
@@ -216,6 +245,14 @@ export const Configuracoes: React.FC = () => {
               >
                 {s.status === 'active' ? 'Pausar' : 'Ativar'}
               </button>
+              <button
+                className="btn-secondary"
+                style={{ padding: '4px 8px', fontSize: '10px', borderColor: 'rgba(212,175,55,0.4)', color: 'var(--accent-gold)' }}
+                onClick={() => openEditModal(s)}
+                title="Editar serviço"
+              >
+                <Pencil size={12} />
+              </button>
             </div>
           ))}
         </div>
@@ -241,6 +278,103 @@ export const Configuracoes: React.FC = () => {
           Redefinir Dados para o Padrão
         </button>
       </div>
+
+      {/* Edit Service Modal */}
+      {editingService && (
+        <div className="modal-overlay">
+          <div className="modal-container">
+            <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 className="modal-title">Editar Serviço</h3>
+              <button type="button" onClick={() => setEditingService(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
+                <X size={18} />
+              </button>
+            </div>
+            <form onSubmit={handleEditServiceSubmit} className="modal-body">
+              <div className="input-group">
+                <span className="input-label">Nome do Serviço *</span>
+                <input
+                  type="text"
+                  className="text-input"
+                  value={editingService.name}
+                  onChange={(e) => setEditingService({ ...editingService, name: e.target.value })}
+                  required
+                  autoFocus
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <div className="input-group" style={{ flex: 1 }}>
+                  <span className="input-label">Preço (R$) *</span>
+                  <input
+                    type="number"
+                    className="text-input"
+                    step="0.01"
+                    min="0"
+                    value={editingService.price}
+                    onChange={(e) => setEditingService({ ...editingService, price: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="input-group" style={{ flex: 1 }}>
+                  <span className="input-label">Duração (min) *</span>
+                  <input
+                    type="number"
+                    className="text-input"
+                    min="5"
+                    value={editingService.duration}
+                    onChange={(e) => setEditingService({ ...editingService, duration: e.target.value })}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="input-group">
+                <span className="input-label">Categoria</span>
+                <select
+                  className="text-input"
+                  value={editingService.category}
+                  onChange={(e) => setEditingService({ ...editingService, category: e.target.value })}
+                >
+                  <option value="Corte">Corte</option>
+                  <option value="Barba">Barba</option>
+                  <option value="Tratamento">Tratamento</option>
+                  <option value="Estética">Estética</option>
+                  <option value="Combo">Combo</option>
+                  <option value="Acabamento">Acabamento</option>
+                  <option value="Outros">Outros</option>
+                </select>
+              </div>
+
+              <div className="input-group">
+                <span className="input-label">Cor Indicadora</span>
+                <div style={{ display: 'flex', gap: '6px', marginTop: '4px' }}>
+                  {['#D4AF37', '#9B59B6', '#3498DB', '#2ECC71', '#E67E22', '#E74C3C', '#C5A059', '#1ABC9C'].map((c) => (
+                    <button
+                      key={c}
+                      type="button"
+                      style={{ width: '32px', height: '32px', borderRadius: '50%', background: c, border: editingService.color === c ? '2.5px solid white' : '2px solid transparent', cursor: 'pointer', transition: 'border 0.15s' }}
+                      onClick={() => setEditingService({ ...editingService, color: c })}
+                    />
+                  ))}
+                </div>
+              </div>
+            </form>
+            <div className="modal-footer">
+              <button type="button" className="btn-secondary" onClick={() => setEditingService(null)}>
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                className="btn-primary"
+                onClick={handleEditServiceSubmit}
+                disabled={!editingService.name || !editingService.price || !editingService.duration}
+              >
+                <Save size={14} /> Salvar Alterações
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Service Creator Modal */}
       {serviceModalOpen && (
