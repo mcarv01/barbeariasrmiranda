@@ -61,8 +61,11 @@ interface AppContextType {
   addTransaction: (transaction: Omit<Transaction, 'id' | 'date'>) => void;
   updateConfig: (updatedConfig: Partial<AgendaConfig>) => void;
   dismissNotification: () => void;
-  simulateTimeJump: (seconds: number) => void; // Fast forward simulation helper
+  simulateTimeJump: (seconds: number) => void;
   resetData: () => void;
+  clientSession: { name: string; phone: string } | null;
+  saveClientSession: (session: { name: string; phone: string }) => void;
+  clearClientSession: () => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -167,6 +170,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [simulatedNotification, setSimulatedNotification] = useState<string | null>(null);
   const [notifiedAppIds, setNotifiedAppIds] = useState<string[]>([]);
+
+  // Client session — persists after first booking so client doesn't have to retype info
+  const [clientSession, setClientSession] = useState<{ name: string; phone: string } | null>(() => {
+    const saved = localStorage.getItem('barber_client_session');
+    return saved ? JSON.parse(saved) : null;
+  });
+
+  useEffect(() => {
+    if (clientSession) {
+      localStorage.setItem('barber_client_session', JSON.stringify(clientSession));
+    } else {
+      localStorage.removeItem('barber_client_session');
+    }
+  }, [clientSession]);
 
   // Save states to local storage
   useEffect(() => {
@@ -557,6 +574,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const saveClientSession = (session: { name: string; phone: string }) => {
+    setClientSession(session);
+  };
+
+  const clearClientSession = () => {
+    setClientSession(null);
+    localStorage.removeItem('barber_client_session');
+  };
+
   const resetData = () => {
     setServices(defaultServices);
     setClients(defaultClients);
@@ -607,7 +633,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateConfig,
         dismissNotification,
         simulateTimeJump,
-        resetData
+        resetData,
+        clientSession,
+        saveClientSession,
+        clearClientSession
       }}
     >
       {children}
