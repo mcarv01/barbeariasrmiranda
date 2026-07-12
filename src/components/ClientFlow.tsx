@@ -186,15 +186,18 @@ export const ClientFlow: React.FC = () => {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column' }}>
 
-      {/* Premium Header Banner (hidden on check-in step) */}
+      {/* Premium Header Banner — flush to header, no padding */}
       {step !== 4 && (
         <div className="premium-banner-container">
           <div className="premium-banner-image" style={{ backgroundImage: "url('/banner.png')" }} />
           <div className="premium-banner-overlay" />
         </div>
       )}
+
+      {/* All content below the banner gets 16px side padding */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: step === 4 ? '16px' : '16px 16px 0' }}>
 
       {/* ── Search / Check-in mode ── */}
       {step !== 4 && (
@@ -804,6 +807,7 @@ export const ClientFlow: React.FC = () => {
         </div>
       )}
 
+      </div>{/* end padded content wrapper */}
     </div>
   );
 };
