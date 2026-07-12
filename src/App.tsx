@@ -6,6 +6,7 @@ import { Clientes } from './components/Clientes';
 import { Financeiro } from './components/Financeiro';
 import { Configuracoes } from './components/Configuracoes';
 import { ClientFlow } from './components/ClientFlow';
+import { usePWAInstall } from './hooks/usePWAInstall';
 import { 
   Scissors, 
   Calendar, 
@@ -15,7 +16,9 @@ import {
   LogOut, 
   Eye,
   Smartphone,
-  LogIn
+  LogIn,
+  Download,
+  X
 } from 'lucide-react';
 import './index.css';
 import './App.css';
@@ -167,6 +170,10 @@ const AppContent: React.FC = () => {
 
   const [tvViewOpen, setTvViewOpen] = useState(false);
   const [showBarberLogin, setShowBarberLogin] = useState(false);
+  const [showIOSInstall, setShowIOSInstall] = useState(false);
+
+  // PWA Install
+  const { isInstalled, isIOS, triggerInstall } = usePWAInstall();
 
   const handleLoginSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -252,6 +259,93 @@ const AppContent: React.FC = () => {
             /* Client Booking Screen */
             <div style={{ display: 'flex', flexDirection: 'column', minHeight: 'calc(100vh - 60px)' }}>
               <ClientFlow />
+              
+              {/* Install App Button */}
+              {!isInstalled && (
+                <div style={{ padding: '20px 16px 8px' }}>
+                  <button
+                    onClick={() => isIOS ? setShowIOSInstall(true) : triggerInstall()}
+                    style={{
+                      width: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '10px',
+                      padding: '14px 20px',
+                      background: 'linear-gradient(135deg, #1a1a1e 0%, #141418 100%)',
+                      border: '1px solid var(--accent-gold)',
+                      borderRadius: '14px',
+                      color: 'var(--accent-gold)',
+                      fontSize: '14px',
+                      fontWeight: '700',
+                      cursor: 'pointer',
+                      boxShadow: '0 0 20px rgba(212,175,55,0.1)',
+                      fontFamily: 'var(--font-sans)',
+                      transition: 'all 0.2s ease'
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.boxShadow = '0 0 30px rgba(212,175,55,0.25)')}
+                    onMouseLeave={(e) => (e.currentTarget.style.boxShadow = '0 0 20px rgba(212,175,55,0.1)')}
+                  >
+                    <Download size={18} />
+                    Baixar Aplicativo
+                    <span style={{ fontSize: '11px', fontWeight: '400', color: 'var(--text-secondary)', marginLeft: '4px' }}>
+                      (Grátis)
+                    </span>
+                  </button>
+                </div>
+              )}
+
+              {/* iOS Install Instructions Modal */}
+              {showIOSInstall && (
+                <div style={{
+                  position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.88)',
+                  zIndex: 9500, display: 'flex', alignItems: 'flex-end', justifyContent: 'center'
+                }}>
+                  <div style={{
+                    background: 'var(--bg-secondary)', width: '100%', maxWidth: '480px',
+                    borderRadius: '20px 20px 0 0', padding: '28px 24px 40px',
+                    border: '1px solid var(--border-color)', borderBottom: 'none'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                      <h3 style={{ fontSize: '17px', fontWeight: '800' }}>Instalar no iPhone / iPad</h3>
+                      <button onClick={() => setShowIOSInstall(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
+                        <X size={20} />
+                      </button>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                      {[{
+                        step: '1', icon: '⬆️',
+                        text: 'Toque no botão Compartilhar na barra inferior do Safari'
+                      }, {
+                        step: '2', icon: '➕',
+                        text: 'Role para baixo e toque em "Adicionar à Tela de Início"'
+                      }, {
+                        step: '3', icon: '✅',
+                        text: 'Toque em "Adicionar" — o app aparecerá na sua tela como qualquer outro!'
+                      }].map(({ step, icon, text }) => (
+                        <div key={step} style={{ display: 'flex', alignItems: 'flex-start', gap: '14px' }}>
+                          <div style={{
+                            width: '32px', height: '32px', borderRadius: '50%', flexShrink: 0,
+                            background: 'var(--accent-gold-glow)', border: '1px solid var(--accent-gold)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontSize: '14px', fontWeight: '800', color: 'var(--accent-gold)'
+                          }}>{step}</div>
+                          <p style={{ fontSize: '14px', color: 'var(--text-secondary)', lineHeight: '1.5', paddingTop: '5px' }}>
+                            {icon} {text}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                    <button
+                      onClick={() => setShowIOSInstall(false)}
+                      className="btn-primary"
+                      style={{ marginTop: '24px', width: '100%' }}
+                    >
+                      Entendi!
+                    </button>
+                  </div>
+                </div>
+              )}
               
               {/* Discreet Barber Access Link at the bottom of client view */}
               {!showBarberLogin && !currentUser && (
