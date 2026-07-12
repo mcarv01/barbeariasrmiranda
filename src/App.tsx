@@ -163,6 +163,7 @@ const AppContent: React.FC = () => {
   const [emailOrPhone, setEmailOrPhone] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [loginError, setLoginError] = useState('');
+  const [rememberMe, setRememberMe] = useState(true);
 
   const [tvViewOpen, setTvViewOpen] = useState(false);
   const [showBarberLogin, setShowBarberLogin] = useState(false);
@@ -170,7 +171,7 @@ const AppContent: React.FC = () => {
   const handleLoginSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!emailOrPhone || !loginPassword) return;
-    const success = login('email', { emailOrPhone, password: loginPassword });
+    const success = login('email', { emailOrPhone, password: loginPassword, rememberMe });
     if (!success) {
       setLoginError('E-mail ou senha incorretos. Tente novamente.');
     } else {
@@ -316,6 +317,27 @@ const AppContent: React.FC = () => {
                         </p>
                       )}
 
+                      {/* Manter conectado */}
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', padding: '4px 0' }}>
+                        <div
+                          onClick={() => setRememberMe(!rememberMe)}
+                          style={{
+                            width: '20px', height: '20px', borderRadius: '6px', flexShrink: 0,
+                            border: `2px solid ${rememberMe ? 'var(--accent-gold)' : 'var(--border-color-hover)'}`,
+                            background: rememberMe ? 'var(--accent-gold-glow)' : 'transparent',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            transition: 'all 0.15s ease', cursor: 'pointer'
+                          }}
+                        >
+                          {rememberMe && <span style={{ color: 'var(--accent-gold)', fontSize: '13px', fontWeight: '800', lineHeight: 1 }}>✓</span>}
+                        </div>
+                        <span style={{ fontSize: '13px', color: 'var(--text-secondary)', userSelect: 'none' }}
+                          onClick={() => setRememberMe(!rememberMe)}
+                        >
+                          Manter conectado neste dispositivo
+                        </span>
+                      </label>
+
                       <button type="submit" className="btn-primary">
                         <LogIn size={14} style={{ marginRight: '6px' }} />
                         Entrar no Painel
@@ -374,6 +396,27 @@ const AppContent: React.FC = () => {
                         {loginError}
                       </p>
                     )}
+
+                    {/* Manter conectado */}
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', padding: '4px 0' }}>
+                      <div
+                        onClick={() => setRememberMe(!rememberMe)}
+                        style={{
+                          width: '20px', height: '20px', borderRadius: '6px', flexShrink: 0,
+                          border: `2px solid ${rememberMe ? 'var(--accent-gold)' : 'var(--border-color-hover)'}`,
+                          background: rememberMe ? 'var(--accent-gold-glow)' : 'transparent',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          transition: 'all 0.15s ease', cursor: 'pointer'
+                        }}
+                      >
+                        {rememberMe && <span style={{ color: 'var(--accent-gold)', fontSize: '13px', fontWeight: '800', lineHeight: 1 }}>✓</span>}
+                      </div>
+                      <span style={{ fontSize: '13px', color: 'var(--text-secondary)', userSelect: 'none' }}
+                        onClick={() => setRememberMe(!rememberMe)}
+                      >
+                        Manter conectado neste dispositivo
+                      </span>
+                    </label>
 
                     <button type="submit" className="btn-primary">
                       <LogIn size={14} style={{ marginRight: '6px' }} />

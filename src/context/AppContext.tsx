@@ -45,7 +45,7 @@ interface AppContextType {
   simulatedNotification: string | null;
   setActiveView: (view: 'barber' | 'client') => void;
   setBarberSubView: (view: 'dashboard' | 'agenda' | 'clientes' | 'financeiro' | 'configuracoes') => void;
-  login: (method: 'google' | 'email' | 'whatsapp', details: { emailOrPhone: string; name?: string; password?: string }) => boolean;
+  login: (method: 'google' | 'email' | 'whatsapp', details: { emailOrPhone: string; name?: string; password?: string; rememberMe?: boolean }) => boolean;
   logout: () => void;
   addService: (service: { name: string; category: string; price: number; duration: number; color: string }) => void;
   updateService: (id: string, updated: Partial<{ id: string; name: string; category: string; price: number; duration: number; color: string; status: 'active' | 'inactive' }>) => void;
@@ -146,8 +146,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [barberSubView, setBarberSubView] = useState<AppContextType['barberSubView']>('dashboard');
   
   const [currentUser, setCurrentUser] = useState<AppContextType['currentUser']>(() => {
-    const saved = localStorage.getItem('barber_user');
-    return saved ? JSON.parse(saved) : null;
+    // Check localStorage first (remember me), then sessionStorage (session only)
+    const savedLocal = localStorage.getItem('barber_user');
+    if (savedLocal) return JSON.parse(savedLocal);
+    const savedSession = sessionStorage.getItem('barber_user');
+    if (savedSession) return JSON.parse(savedSession);
+    return null;
   });
 
   const [activeAppointmentId, setActiveAppointmentId] = useState<string | null>(() => {
@@ -207,10 +211,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [config]);
 
   useEffect(() => {
-    if (currentUser) {
-      localStorage.setItem('barber_user', JSON.stringify(currentUser));
-    } else {
+    // Session persistence is handled at login time (localStorage vs sessionStorage)
+    // We only need to clean up localStorage if user is null
+    if (!currentUser) {
       localStorage.removeItem('barber_user');
+      sessionStorage.removeItem('barber_user');
     }
   }, [currentUser]);
 
@@ -295,7 +300,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []);
 
   // Action methods
-  const login = (_method: 'google' | 'email' | 'whatsapp', details: { emailOrPhone: string; name?: string; password?: string }): boolean => {
+  const login = (_method: 'google' | 'email' | 'whatsapp', details: { emailOrPhone: string; name?: string; password?: string; rememberMe?: boolean }): boolean => {
     // Only the registered barber email + password combo unlocks barber access
     if (details.emailOrPhone.toLowerCase() === BARBER_EMAIL && details.password === BARBER_PASSWORD) {
       const user = {
@@ -306,6 +311,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
       setCurrentUser(user);
       setActiveView('barber');
+      // Persist based on rememberMe flag
+      if (details.rememberMe !== false) {
+        // Default = remember (localStorage survives browser close)
+        localStorage.setItem('barber_user', JSON.stringify(user));
+        sessionStorage.removeItem('barber_user');
+      } else {
+        // Session only (cleared when browser closes)
+        sessionStorage.setItem('barber_user', JSON.stringify(user));
+        localStorage.removeItem('barber_user');
+      }
       return true;
     }
     // Wrong credentials
@@ -318,6 +333,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setActiveTimer(0);
     setToleranceTimer(0);
     setNextAppointmentIdForTolerance(null);
+    localStorage.removeItem('barber_user');
+    sessionStorage.removeItem('barber_user');
   };
 
   const addService = (service: Omit<typeof services[0], 'id' | 'status'>) => {
