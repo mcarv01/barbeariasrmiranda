@@ -1,0 +1,790 @@
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import type { Appointment, AgendaConfig } from '../utils/scheduleAlgorithm';
+import { parseTimeToMinutes } from '../utils/scheduleAlgorithm';
+
+export interface Client {
+  id: string;
+  name: string;
+  phone: string;
+  whatsapp: string;
+  birthDate: string;
+  instagram: string;
+  notes: string;
+  hairPreference: string;
+  photos?: string[]; // Optional photos
+  lastVisit: string;
+  visitCount: number;
+  totalSpent: number;
+  avgInterval: number; // in days
+  loyaltyCount: number; // current count towards reward (e.g. 0 to 10)
+}
+
+export interface Transaction {
+  id: string;
+  type: 'entrada' | 'saida';
+  description: string;
+  amount: number;
+  date: string; // YYYY-MM-DD
+  category: string;
+  paymentMethod?: 'pix' | 'cartao' | 'dinheiro';
+}
+
+interface AppContextType {
+  services: { id: string; name: string; category: string; price: number; duration: number; color: string; status: 'active' | 'inactive' }[];
+  clients: Client[];
+  appointments: Appointment[];
+  transactions: Transaction[];
+  config: AgendaConfig;
+  activeView: 'barber' | 'client';
+  barberSubView: 'dashboard' | 'agenda' | 'clientes' | 'financeiro' | 'configuracoes';
+  currentUser: { name: string; email: string; role: 'barber' | 'client'; phone?: string } | null;
+  activeAppointmentId: string | null;
+  activeTimer: number; // remaining seconds
+  toleranceTimer: number; // remaining seconds of tolerance for next client
+  nextAppointmentIdForTolerance: string | null;
+  simulatedNotification: string | null;
+  setActiveView: (view: 'barber' | 'client') => void;
+  setBarberSubView: (view: 'dashboard' | 'agenda' | 'clientes' | 'financeiro' | 'configuracoes') => void;
+  login: (method: 'google' | 'email' | 'whatsapp', details: { emailOrPhone: string; name?: string }) => void;
+  logout: () => void;
+  addService: (service: { name: string; category: string; price: number; duration: number; color: string }) => void;
+  updateService: (id: string, updated: Partial<{ id: string; name: string; category: string; price: number; duration: number; color: string; status: 'active' | 'inactive' }>) => void;
+  addClient: (client: Omit<Client, 'id' | 'lastVisit' | 'visitCount' | 'totalSpent' | 'avgInterval' | 'loyaltyCount'>) => Client;
+  updateClient: (id: string, updated: Partial<Client>) => void;
+  addAppointment: (appointment: Omit<Appointment, 'id' | 'status' | 'clientStatus'> & { clientPhone: string }) => Appointment;
+  updateAppointment: (id: string, updated: Partial<Appointment>) => void;
+  cancelAppointment: (id: string) => void;
+  startAppointment: (id: string) => void;
+  finishAppointment: (id: string, paymentMethod: 'pix' | 'cartao' | 'dinheiro') => void;
+  markNoShow: (id: string) => void;
+  updateClientStatus: (appointmentId: string, status: 'presente' | 'a_caminho' | 'sem_resposta') => void;
+  addTransaction: (transaction: Omit<Transaction, 'id' | 'date'>) => void;
+  updateConfig: (updatedConfig: Partial<AgendaConfig>) => void;
+  dismissNotification: () => void;
+  simulateTimeJump: (seconds: number) => void; // Fast forward simulation helper
+  resetData: () => void;
+}
+
+const AppContext = createContext<AppContextType | undefined>(undefined);
+
+// Initial/default configuration
+const defaultConfig: AgendaConfig = {
+  openingTime: '08:00',
+  closingTime: '20:00',
+  workingDays: [0, 1, 2, 3, 4, 5, 6], // Sunday to Saturday (Sunday enabled by default for testing convenience)
+  lunchStart: '12:00',
+  lunchEnd: '13:00',
+  bufferTime: 5,
+  minLeadTime: 1, // 1 hour in advance
+  maxAdvanceDays: 30,
+  blockedPeriods: [
+    { start: '16:00', end: '16:15', label: 'Café da tarde' }
+  ],
+  vacations: [],
+  holidays: ['2026-12-25', '2026-01-01'],
+  toleranceTime: 10, // 10 minutes
+  notificationTime: 10 // 10 minutes before ending
+};
+
+// Initial services
+const defaultServices = [
+  { id: '1', name: 'Corte Tradicional', category: 'Corte', price: 40, duration: 30, color: '#D4AF37', status: 'active' as const },
+  { id: '2', name: 'Barba Premium', category: 'Barba', price: 30, duration: 20, color: '#C5A059', status: 'active' as const },
+  { id: '3', name: 'Pigmentação', category: 'Acabamento', price: 20, duration: 15, color: '#E74C3C', status: 'active' as const },
+  { id: '4', name: 'Corte + Barba', category: 'Combo', price: 65, duration: 50, color: '#9B59B6', status: 'active' as const },
+  { id: '5', name: 'Sobrancelha', category: 'Estética', price: 15, duration: 10, color: '#2ECC71', status: 'active' as const },
+  { id: '6', name: 'Hidratação Capilar', category: 'Tratamento', price: 35, duration: 25, color: '#3498DB', status: 'active' as const }
+];
+
+// Initial mock clients
+const defaultClients: Client[] = [
+  {
+    id: 'c1',
+    name: 'Carlos Oliveira',
+    phone: '11988887777',
+    whatsapp: '11988887777',
+    birthDate: '1992-05-15',
+    instagram: '@carlos_oli',
+    notes: 'Gosta de degradê navalhado. Usa pomada efeito seco.',
+    hairPreference: 'Degradê baixo e Barba alinhada com toalha quente.',
+    photos: [],
+    lastVisit: '2026-06-28',
+    visitCount: 12,
+    totalSpent: 480,
+    avgInterval: 15,
+    loyaltyCount: 2
+  },
+  {
+    id: 'c2',
+    name: 'Roberto Souza',
+    phone: '11977776666',
+    whatsapp: '11977776666',
+    birthDate: '1988-11-20',
+    instagram: '@robertinho_s',
+    notes: 'Corte clássico tesoura. Sem barba.',
+    hairPreference: 'Social na tesoura, bem discreto.',
+    photos: [],
+    lastVisit: '2026-07-01',
+    visitCount: 8,
+    totalSpent: 320,
+    avgInterval: 20,
+    loyaltyCount: 8
+  },
+  {
+    id: 'c3',
+    name: 'Arthur Mendes',
+    phone: '11966665555',
+    whatsapp: '11966665555',
+    birthDate: '1995-03-10',
+    instagram: '@arthur_mendes',
+    notes: 'Sempre faz corte, barba e sobrancelha. Gosta de risquinho na sobrancelha.',
+    hairPreference: 'Corte degradê médio com risca lateral e pigmentação leve na barba.',
+    photos: [],
+    lastVisit: '2026-07-05',
+    visitCount: 5,
+    totalSpent: 380,
+    avgInterval: 18,
+    loyaltyCount: 5
+  },
+  {
+    id: 'c4',
+    name: 'Marcos Vinícius',
+    phone: '11955554444',
+    whatsapp: '11955554444',
+    birthDate: '2001-08-25',
+    instagram: '@marcos_vini',
+    notes: 'Corte Buzz Cut (máquina 2). Sempre rápido.',
+    hairPreference: 'Corte curto uniforme.',
+    photos: [],
+    lastVisit: '2026-06-15',
+    visitCount: 15,
+    totalSpent: 450,
+    avgInterval: 25,
+    loyaltyCount: 0
+  }
+];
+
+// Initial mock transactions (populate past revenue data)
+const defaultTransactions = (): Transaction[] => {
+  const list: Transaction[] = [];
+  const dates = ['2026-07-08', '2026-07-09', '2026-07-10', '2026-07-11'];
+  
+  // Add some inputs
+  dates.forEach((d, i) => {
+    list.push({
+      id: `t-in-1-${i}`,
+      type: 'entrada',
+      description: 'Atendimento Carlos Oliveira',
+      amount: 40,
+      date: d,
+      category: 'Serviço',
+      paymentMethod: 'pix'
+    });
+    list.push({
+      id: `t-in-2-${i}`,
+      type: 'entrada',
+      description: 'Atendimento Roberto Souza',
+      amount: 30,
+      date: d,
+      category: 'Serviço',
+      paymentMethod: 'cartao'
+    });
+    list.push({
+      id: `t-in-3-${i}`,
+      type: 'entrada',
+      description: 'Atendimento Arthur Mendes',
+      amount: 80,
+      date: d,
+      category: 'Serviço',
+      paymentMethod: 'pix'
+    });
+    // Add one expense
+    list.push({
+      id: `t-out-${i}`,
+      type: 'saida',
+      description: 'Material de Limpeza / Pomadas',
+      amount: i % 2 === 0 ? 50 : 25,
+      date: d,
+      category: 'Suprimentos'
+    });
+  });
+  return list;
+};
+
+// Initial mock appointments
+const defaultAppointments = (todayStr: string): Appointment[] => [
+  {
+    id: 'app-1',
+    clientName: 'Carlos Oliveira',
+    clientPhone: '11988887777',
+    clientStatus: 'finalizado',
+    date: todayStr,
+    startTime: '09:00',
+    duration: 30,
+    services: [{ name: 'Corte Tradicional', price: 40, duration: 30 }],
+    totalValue: 40,
+    status: 'finalizado',
+    startedAt: `${todayStr}T09:00:00.000Z`,
+    finishedAt: `${todayStr}T09:28:00.000Z`,
+    paymentMethod: 'pix'
+  },
+  {
+    id: 'app-2',
+    clientName: 'Roberto Souza',
+    clientPhone: '11977776666',
+    clientStatus: 'presente',
+    date: todayStr,
+    startTime: '10:30',
+    duration: 50,
+    services: [
+      { name: 'Corte Tradicional', price: 40, duration: 30 },
+      { name: 'Barba Premium', price: 30, duration: 20 }
+    ],
+    totalValue: 70,
+    status: 'pendente'
+  },
+  {
+    id: 'app-3',
+    clientName: 'Arthur Mendes',
+    clientPhone: '11966665555',
+    clientStatus: 'sem_resposta',
+    date: todayStr,
+    startTime: '13:00',
+    duration: 65,
+    services: [
+      { name: 'Corte Tradicional', price: 40, duration: 30 },
+      { name: 'Pigmentação', price: 20, duration: 15 },
+      { name: 'Escova', price: 25, duration: 20 }
+    ],
+    totalValue: 85,
+    status: 'pendente'
+  }
+];
+
+export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const getTodayStr = () => new Date().toISOString().split('T')[0];
+  const todayStr = getTodayStr();
+
+  // State initialization with localStorage
+  const [services, setServices] = useState<AppContextType['services']>(() => {
+    const saved = localStorage.getItem('barber_services');
+    return saved ? JSON.parse(saved) : defaultServices;
+  });
+
+  const [clients, setClients] = useState<Client[]>(() => {
+    const saved = localStorage.getItem('barber_clients');
+    return saved ? JSON.parse(saved) : defaultClients;
+  });
+
+  const [appointments, setAppointments] = useState<Appointment[]>(() => {
+    const saved = localStorage.getItem('barber_appointments');
+    return saved ? JSON.parse(saved) : defaultAppointments(todayStr);
+  });
+
+  const [transactions, setTransactions] = useState<Transaction[]>(() => {
+    const saved = localStorage.getItem('barber_transactions');
+    return saved ? JSON.parse(saved) : defaultTransactions();
+  });
+
+  const [config, setConfig] = useState<AgendaConfig>(() => {
+    const saved = localStorage.getItem('barber_config');
+    return saved ? JSON.parse(saved) : defaultConfig;
+  });
+
+  const [activeView, setActiveView] = useState<'barber' | 'client'>('barber');
+  const [barberSubView, setBarberSubView] = useState<AppContextType['barberSubView']>('dashboard');
+  
+  const [currentUser, setCurrentUser] = useState<AppContextType['currentUser']>(() => {
+    const saved = localStorage.getItem('barber_user');
+    return saved ? JSON.parse(saved) : { name: 'Miranda', email: 'contato@srmiranda.com.br', role: 'barber' };
+  });
+
+  const [activeAppointmentId, setActiveAppointmentId] = useState<string | null>(() => {
+    return localStorage.getItem('barber_active_app_id');
+  });
+
+  const [activeTimer, setActiveTimer] = useState<number>(() => {
+    const saved = localStorage.getItem('barber_active_timer');
+    return saved ? Number(saved) : 0;
+  });
+
+  const [toleranceTimer, setToleranceTimer] = useState<number>(() => {
+    const saved = localStorage.getItem('barber_tolerance_timer');
+    return saved ? Number(saved) : 0;
+  });
+
+  const [nextAppointmentIdForTolerance, setNextAppointmentIdForTolerance] = useState<string | null>(() => {
+    return localStorage.getItem('barber_tolerance_app_id');
+  });
+
+  const [simulatedNotification, setSimulatedNotification] = useState<string | null>(null);
+  const [notifiedAppIds, setNotifiedAppIds] = useState<string[]>([]);
+
+  // Save states to local storage
+  useEffect(() => {
+    localStorage.setItem('barber_services', JSON.stringify(services));
+  }, [services]);
+
+  useEffect(() => {
+    localStorage.setItem('barber_clients', JSON.stringify(clients));
+  }, [clients]);
+
+  useEffect(() => {
+    localStorage.setItem('barber_appointments', JSON.stringify(appointments));
+  }, [appointments]);
+
+  useEffect(() => {
+    localStorage.setItem('barber_transactions', JSON.stringify(transactions));
+  }, [transactions]);
+
+  useEffect(() => {
+    localStorage.setItem('barber_config', JSON.stringify(config));
+  }, [config]);
+
+  useEffect(() => {
+    if (currentUser) {
+      localStorage.setItem('barber_user', JSON.stringify(currentUser));
+    } else {
+      localStorage.removeItem('barber_user');
+    }
+  }, [currentUser]);
+
+  useEffect(() => {
+    if (activeAppointmentId) {
+      localStorage.setItem('barber_active_app_id', activeAppointmentId);
+    } else {
+      localStorage.removeItem('barber_active_app_id');
+    }
+  }, [activeAppointmentId]);
+
+  useEffect(() => {
+    localStorage.setItem('barber_active_timer', String(activeTimer));
+  }, [activeTimer]);
+
+  useEffect(() => {
+    localStorage.setItem('barber_tolerance_timer', String(toleranceTimer));
+  }, [toleranceTimer]);
+
+  useEffect(() => {
+    if (nextAppointmentIdForTolerance) {
+      localStorage.setItem('barber_tolerance_app_id', nextAppointmentIdForTolerance);
+    } else {
+      localStorage.removeItem('barber_tolerance_app_id');
+    }
+  }, [nextAppointmentIdForTolerance]);
+
+  // Real-time ticking system
+  useEffect(() => {
+    const interval = setInterval(() => {
+      // 1. Tick active appointment timer
+      if (activeAppointmentId) {
+        const app = appointments.find((a) => a.id === activeAppointmentId);
+        if (app && app.status === 'em_atendimento' && app.startedAt) {
+          const totalSecs = app.duration * 60;
+          const elapsedSecs = Math.floor((Date.now() - new Date(app.startedAt).getTime()) / 1000);
+          const remaining = Math.max(0, totalSecs - elapsedSecs);
+          setActiveTimer(remaining);
+
+          // Trigger simulated notification when remaining time is less than notificationTime minutes (e.g. 10m = 600s)
+          const notificationLimitSecs = config.notificationTime * 60;
+          if (remaining <= notificationLimitSecs && remaining > 0 && !notifiedAppIds.includes(app.id)) {
+            // Find next appointment for notification
+            const todayApps = appointments
+              .filter((a) => a.date === todayStr && a.status === 'pendente')
+              .sort((a, b) => parseTimeToMinutes(a.startTime) - parseTimeToMinutes(b.startTime));
+
+            if (todayApps.length > 0) {
+              const nextApp = todayApps[0];
+              setSimulatedNotification(
+                `📍 Barber One: Falta aproximadamente ${config.notificationTime} minutos para finalizar o atendimento atual. Você é o próximo da fila (${nextApp.clientName}). Dirija-se à barbearia para evitar atrasos.`
+              );
+              setNotifiedAppIds((prev) => [...prev, app.id]);
+            }
+          }
+        }
+      }
+
+      // 2. Tick tolerance timer for a lagging next client
+      if (nextAppointmentIdForTolerance && toleranceTimer > 0) {
+        setToleranceTimer((prev) => {
+          if (prev <= 1) {
+            // Trigger automatic No-Show when tolerance timer runs out!
+            markNoShow(nextAppointmentIdForTolerance);
+            setNextAppointmentIdForTolerance(null);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [activeAppointmentId, appointments, toleranceTimer, nextAppointmentIdForTolerance, config, notifiedAppIds]);
+
+  // Simulate auto backup every 30 seconds
+  useEffect(() => {
+    const backupInterval = setInterval(() => {
+      console.log('Backup automático em nuvem simulada concluído!');
+    }, 30000);
+    return () => clearInterval(backupInterval);
+  }, []);
+
+  // Action methods
+  const login = (_method: 'google' | 'email' | 'whatsapp', details: { emailOrPhone: string; name?: string }) => {
+    let role: 'barber' | 'client' = 'client';
+    // Assume contact@srmiranda.com.br or admin is barber
+    if (details.emailOrPhone.includes('miranda') || details.emailOrPhone === 'admin') {
+      role = 'barber';
+    }
+    const user = {
+      name: details.name || (role === 'barber' ? 'Miranda' : 'Cliente'),
+      email: details.emailOrPhone.includes('@') ? details.emailOrPhone : '',
+      phone: !details.emailOrPhone.includes('@') ? details.emailOrPhone : '',
+      role
+    };
+    setCurrentUser(user);
+    setActiveView(role);
+  };
+
+  const logout = () => {
+    setCurrentUser(null);
+    setActiveAppointmentId(null);
+    setActiveTimer(0);
+    setToleranceTimer(0);
+    setNextAppointmentIdForTolerance(null);
+  };
+
+  const addService = (service: Omit<typeof services[0], 'id' | 'status'>) => {
+    const newService = {
+      ...service,
+      id: String(Date.now()),
+      status: 'active' as const
+    };
+    setServices((prev) => [...prev, newService]);
+  };
+
+  const updateService = (id: string, updated: Partial<typeof services[0]>) => {
+    setServices((prev) => prev.map((s) => (s.id === id ? { ...s, ...updated } : s)));
+  };
+
+  const addClient = (clientData: Omit<Client, 'id' | 'lastVisit' | 'visitCount' | 'totalSpent' | 'avgInterval' | 'loyaltyCount'>) => {
+    const newClient: Client = {
+      ...clientData,
+      id: 'c-' + Date.now(),
+      lastVisit: '-',
+      visitCount: 0,
+      totalSpent: 0,
+      avgInterval: 0,
+      loyaltyCount: 0,
+      photos: []
+    };
+    setClients((prev) => [...prev, newClient]);
+    return newClient;
+  };
+
+  const updateClient = (id: string, updated: Partial<Client>) => {
+    setClients((prev) => prev.map((c) => (c.id === id ? { ...c, ...updated } : c)));
+  };
+
+  const addAppointment = (appData: Omit<Appointment, 'id' | 'status' | 'clientStatus'> & { clientPhone: string }) => {
+    const newApp: Appointment = {
+      ...appData,
+      id: 'app-' + Date.now(),
+      status: 'pendente',
+      clientStatus: 'sem_resposta'
+    };
+
+    // Update customer lists if client exists, otherwise create new client
+    const existingClient = clients.find((c) => c.phone === appData.clientPhone);
+    if (!existingClient) {
+      addClient({
+        name: appData.clientName,
+        phone: appData.clientPhone,
+        whatsapp: appData.clientPhone,
+        birthDate: '',
+        instagram: '',
+        notes: 'Agendado pelo fluxo de autoatendimento.',
+        hairPreference: '',
+        photos: []
+      });
+    }
+
+    setAppointments((prev) => [...prev, newApp]);
+    return newApp;
+  };
+
+  const updateAppointment = (id: string, updated: Partial<Appointment>) => {
+    setAppointments((prev) => prev.map((a) => (a.id === id ? { ...a, ...updated } : a)));
+  };
+
+  const cancelAppointment = (id: string) => {
+    setAppointments((prev) => prev.map((a) => (a.id === id ? { ...a, status: 'cancelado' } : a)));
+    // If the cancelled appointment was the tolerance active target, clear it
+    if (nextAppointmentIdForTolerance === id) {
+      setNextAppointmentIdForTolerance(null);
+      setToleranceTimer(0);
+    }
+  };
+
+  const startAppointment = (id: string) => {
+    setActiveAppointmentId(id);
+    const nowStr = new Date().toISOString();
+    setAppointments((prev) =>
+      prev.map((a) => (a.id === id ? { ...a, status: 'em_atendimento', startedAt: nowStr } : a))
+    );
+    // Find appointment duration to set timer
+    const app = appointments.find((a) => a.id === id);
+    if (app) {
+      setActiveTimer(app.duration * 60);
+    }
+    // If we start the appointment, any tolerance for this customer is stopped
+    if (nextAppointmentIdForTolerance === id) {
+      setNextAppointmentIdForTolerance(null);
+      setToleranceTimer(0);
+    }
+  };
+
+  const finishAppointment = (id: string, paymentMethod: 'pix' | 'cartao' | 'dinheiro') => {
+    const app = appointments.find((a) => a.id === id);
+    if (!app) return;
+
+    const finishedAtStr = new Date().toISOString();
+    
+    // 1. Update appointment status
+    setAppointments((prev) =>
+      prev.map((a) =>
+        a.id === id ? { ...a, status: 'finalizado', finishedAt: finishedAtStr, paymentMethod, clientStatus: 'finalizado' } : a
+      )
+    );
+
+    // 2. Add transaction record
+    setTransactions((prev) => [
+      ...prev,
+      {
+        id: 't-in-' + Date.now(),
+        type: 'entrada',
+        description: `Serviço ${app.services.map((s) => s.name).join(', ')} - ${app.clientName}`,
+        amount: app.totalValue,
+        date: todayStr,
+        category: 'Serviço',
+        paymentMethod
+      }
+    ]);
+
+    // 3. Update client stats (spending, visits, loyalty count)
+    setClients((prev) =>
+      prev.map((c) => {
+        if (c.phone === app.clientPhone || c.name === app.clientName) {
+          const newVisitCount = c.visitCount + 1;
+          const newLoyalty = (c.loyaltyCount + 1) % 10;
+          return {
+            ...c,
+            lastVisit: todayStr,
+            visitCount: newVisitCount,
+            totalSpent: c.totalSpent + app.totalValue,
+            loyaltyCount: newLoyalty
+          };
+        }
+        return c;
+      })
+    );
+
+    // Reset active appointment state
+    setActiveAppointmentId(null);
+    setActiveTimer(0);
+
+    // 4. Queue / Tolerance logic for NEXT client:
+    // Look for the next client scheduled for today
+    const remainingToday = appointments
+      .filter((a) => a.date === todayStr && a.status === 'pendente' && a.id !== id)
+      .sort((a, b) => parseTimeToMinutes(a.startTime) - parseTimeToMinutes(b.startTime));
+
+    if (remainingToday.length > 0) {
+      const nextApp = remainingToday[0];
+      // If the next client is "a_caminho", start tolerance countdown (default 10 mins = 600 seconds)
+      if (nextApp.clientStatus === 'a_caminho' || nextApp.clientStatus === 'sem_resposta') {
+        setNextAppointmentIdForTolerance(nextApp.id);
+        setToleranceTimer(config.toleranceTime * 60);
+      }
+    }
+  };
+
+  const markNoShow = (id: string) => {
+    setAppointments((prev) =>
+      prev.map((a) => (a.id === id ? { ...a, status: 'no_show', clientStatus: 'no_show' } : a))
+    );
+
+    const app = appointments.find((a) => a.id === id);
+    if (app) {
+      // Record in customer CRM that client missed appointment
+      setClients((prev) =>
+        prev.map((c) => {
+          if (c.phone === app.clientPhone) {
+            return {
+              ...c,
+              notes: `${c.notes ? c.notes + ' | ' : ''}Falta registrada (No-show) em ${todayStr}.`
+            };
+          }
+          return c;
+        })
+      );
+    }
+    
+    // Clear tolerance timer
+    if (nextAppointmentIdForTolerance === id) {
+      setNextAppointmentIdForTolerance(null);
+      setToleranceTimer(0);
+    }
+  };
+
+  const updateClientStatus = (appointmentId: string, status: 'presente' | 'a_caminho' | 'sem_resposta') => {
+    setAppointments((prev) =>
+      prev.map((a) => (a.id === appointmentId ? { ...a, clientStatus: status } : a))
+    );
+
+    // If client marks themselves as present, terminate their tolerance timer immediately!
+    if (status === 'presente' && nextAppointmentIdForTolerance === appointmentId) {
+      setNextAppointmentIdForTolerance(null);
+      setToleranceTimer(0);
+    }
+  };
+
+  const addTransaction = (tData: Omit<Transaction, 'id' | 'date'>) => {
+    setTransactions((prev) => [
+      ...prev,
+      {
+        ...tData,
+        id: 't-' + Date.now(),
+        date: todayStr
+      }
+    ]);
+  };
+
+  const updateConfig = (updatedConfig: Partial<AgendaConfig>) => {
+    setConfig((prev) => ({ ...prev, ...updatedConfig }));
+  };
+
+  const dismissNotification = () => {
+    setSimulatedNotification(null);
+  };
+
+  // Helper function to fast forward time in our simulations
+  const simulateTimeJump = (seconds: number) => {
+    // Jump active timer
+    if (activeAppointmentId && activeTimer > 0) {
+      setActiveTimer((prev) => Math.max(0, prev - seconds));
+      
+      // Manually trigger notification if we cross the line
+      const app = appointments.find((a) => a.id === activeAppointmentId);
+      if (app && !notifiedAppIds.includes(app.id)) {
+        const remaining = Math.max(0, activeTimer - seconds);
+        const limit = config.notificationTime * 60;
+        if (remaining <= limit) {
+          const todayApps = appointments
+            .filter((a) => a.date === todayStr && a.status === 'pendente')
+            .sort((a, b) => parseTimeToMinutes(a.startTime) - parseTimeToMinutes(b.startTime));
+
+          if (todayApps.length > 0) {
+            const nextApp = todayApps[0];
+            setSimulatedNotification(
+              `📍 Barber One: Falta aproximadamente ${config.notificationTime} minutos para finalizar o atendimento atual. Você é o próximo da fila (${nextApp.clientName}). Dirija-se à barbearia para evitar atrasos.`
+            );
+            setNotifiedAppIds((prev) => [...prev, app.id]);
+          }
+        }
+      }
+    }
+
+    // Jump tolerance timer
+    if (nextAppointmentIdForTolerance && toleranceTimer > 0) {
+      setToleranceTimer((prev) => {
+        const nextVal = Math.max(0, prev - seconds);
+        if (nextVal === 0) {
+          markNoShow(nextAppointmentIdForTolerance);
+          setNextAppointmentIdForTolerance(null);
+        }
+        return nextVal;
+      });
+    }
+  };
+
+  const resetData = () => {
+    setServices(defaultServices);
+    setClients(defaultClients);
+    setAppointments(defaultAppointments(todayStr));
+    setTransactions(defaultTransactions());
+    setConfig(defaultConfig);
+    setActiveAppointmentId(null);
+    setActiveTimer(0);
+    setToleranceTimer(0);
+    setNextAppointmentIdForTolerance(null);
+    setSimulatedNotification(null);
+    setNotifiedAppIds([]);
+    localStorage.clear();
+  };
+
+  return (
+    <AppContext.Provider
+      value={{
+        services,
+        clients,
+        appointments,
+        transactions,
+        config,
+        activeView,
+        barberSubView,
+        currentUser,
+        activeAppointmentId,
+        activeTimer,
+        toleranceTimer,
+        nextAppointmentIdForTolerance,
+        simulatedNotification,
+        setActiveView,
+        setBarberSubView,
+        login,
+        logout,
+        addService,
+        updateService,
+        addClient,
+        updateClient,
+        addAppointment,
+        updateAppointment,
+        cancelAppointment,
+        startAppointment,
+        finishAppointment,
+        markNoShow,
+        updateClientStatus,
+        addTransaction,
+        updateConfig,
+        dismissNotification,
+        simulateTimeJump,
+        resetData
+      }}
+    >
+      {children}
+      {/* Simulation Banner Info (Console or visual notifications) */}
+      {simulatedNotification && (
+        <div className="simulated-notification-toast">
+          <div className="toast-content">
+            <span className="toast-icon">📍</span>
+            <div className="toast-text">
+              <h4>Notificação Enviada ao Próximo Cliente</h4>
+              <p>{simulatedNotification}</p>
+            </div>
+            <button onClick={dismissNotification} className="toast-close">
+              Fechar
+            </button>
+          </div>
+        </div>
+      )}
+    </AppContext.Provider>
+  );
+};
+
+export const useApp = () => {
+  const context = useContext(AppContext);
+  if (!context) {
+    throw new Error('useApp must be used within an AppProvider');
+  }
+  return context;
+};

@@ -1,0 +1,25 @@
+{
+  "name": "Barber One - Agendamento Inteligente",
+  "short_name": "Barber One",
+  "description": "Sistema Inteligente de Agendamento para Barbeiro Autônomo",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#09090b",
+  "theme_color": "#09090b",
+  "orientation": "portrait-primary",
+  "categories": ["utilities", "business"],
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/2821/2821012.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/2821/2821012.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
