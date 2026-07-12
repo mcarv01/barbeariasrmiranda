@@ -14,7 +14,8 @@ import {
   Settings, 
   LogOut, 
   Eye,
-  Smartphone
+  Smartphone,
+  LogIn
 } from 'lucide-react';
 import './index.css';
 import './App.css';
@@ -160,14 +161,22 @@ const AppContent: React.FC = () => {
 
   // Login form helper states
   const [emailOrPhone, setEmailOrPhone] = useState('');
-  const [loginMethod, setLoginMethod] = useState<'google' | 'email' | 'whatsapp'>('email');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [loginError, setLoginError] = useState('');
 
   const [tvViewOpen, setTvViewOpen] = useState(false);
+  const [showBarberLogin, setShowBarberLogin] = useState(false);
 
   const handleLoginSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!emailOrPhone) return;
-    login(loginMethod, { emailOrPhone });
+    if (!emailOrPhone || !loginPassword) return;
+    const success = login('email', { emailOrPhone, password: loginPassword });
+    if (!success) {
+      setLoginError('E-mail ou senha incorretos. Tente novamente.');
+    } else {
+      setLoginError('');
+      setShowBarberLogin(false);
+    }
   };
 
   // Render Barber sub-view contents
@@ -192,31 +201,47 @@ const AppContent: React.FC = () => {
     <>
       <div className="app-container">
         
-        {/* Top Header with Role Switcher & Real-time Cloud Backup Sync */}
+        {/* Top Header */}
         <header className="role-switcher-header">
           <h1 className="brand-title">
             <Scissors size={20} style={{ color: 'var(--accent-gold)' }} />
-            <span>Barber One</span>
+            <span>Barbearia Sr. Miranda</span>
           </h1>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            {/* TV Panel Toggle Button */}
-            <button 
-              className="role-toggle-btn"
-              onClick={() => setTvViewOpen(true)}
-              style={{ background: 'rgba(212, 175, 55, 0.08)', color: 'var(--accent-gold)', borderColor: 'rgba(212, 175, 55, 0.3)' }}
-            >
-              📺 Painel TV
-            </button>
+            {/* TV Panel - only visible when barber is logged in */}
+            {activeView === 'barber' && currentUser && (
+              <button 
+                className="role-toggle-btn"
+                onClick={() => setTvViewOpen(true)}
+                style={{ background: 'rgba(212, 175, 55, 0.08)', color: 'var(--accent-gold)', borderColor: 'rgba(212, 175, 55, 0.3)' }}
+              >
+                📺 Painel TV
+              </button>
+            )}
 
-            {/* Quick role-switch for demo convenience */}
-            <button 
-              className={`role-toggle-btn ${activeView === 'client' ? 'active-client' : ''}`}
-              onClick={() => setActiveView(activeView === 'barber' ? 'client' : 'barber')}
-            >
-              <Eye size={12} />
-              <span>Ver como {activeView === 'barber' ? 'Cliente' : 'Barbeiro'}</span>
-            </button>
+            {/* When barber is logged in, show switch to client view */}
+            {activeView === 'barber' && currentUser && (
+              <button 
+                className="role-toggle-btn"
+                onClick={() => setActiveView('client')}
+              >
+                <Eye size={12} />
+                <span>Ver como Cliente</span>
+              </button>
+            )}
+
+            {/* When in client view, show a back button if barber was previously logged */}
+            {activeView === 'client' && currentUser && (
+              <button 
+                className="role-toggle-btn"
+                onClick={() => setActiveView('barber')}
+                style={{ fontSize: '11px' }}
+              >
+                <Scissors size={11} />
+                <span>Painel Barbeiro</span>
+              </button>
+            )}
           </div>
         </header>
 
@@ -224,66 +249,144 @@ const AppContent: React.FC = () => {
         <main className="main-viewport">
           {activeView === 'client' ? (
             /* Client Booking Screen */
-            <ClientFlow />
+            <div style={{ display: 'flex', flexDirection: 'column', minHeight: 'calc(100vh - 60px)' }}>
+              <ClientFlow />
+              
+              {/* Discreet Barber Access Link at the bottom of client view */}
+              {!showBarberLogin && !currentUser && (
+                <div style={{ textAlign: 'center', padding: '24px 16px 40px', marginTop: 'auto' }}>
+                  <button
+                    onClick={() => setShowBarberLogin(true)}
+                    style={{ 
+                      background: 'none', border: 'none', 
+                      color: 'var(--text-muted)', 
+                      fontSize: '11px', cursor: 'pointer',
+                      textDecoration: 'underline',
+                      opacity: 0.6
+                    }}
+                  >
+                    <Scissors size={10} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
+                    Acesso do Barbeiro
+                  </button>
+                </div>
+              )}
+
+              {/* Barber Login Modal Overlay */}
+              {showBarberLogin && (
+                <div style={{
+                  position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)',
+                  zIndex: 9000, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  padding: '20px'
+                }}>
+                  <div className="login-card" style={{ width: '100%', maxWidth: '380px' }}>
+                    <div className="login-header">
+                      <div className="login-logo">✂️</div>
+                      <h2 className="login-title">Área do Barbeiro</h2>
+                      <p className="login-subtitle">Acesso exclusivo — Barbearia Sr. Miranda</p>
+                    </div>
+
+                    <form onSubmit={handleLoginSubmit} className="login-form">
+                      <div className="input-group">
+                        <span className="input-label">E-mail</span>
+                        <input
+                          type="email"
+                          className="text-input"
+                          placeholder="seu@email.com.br"
+                          value={emailOrPhone}
+                          onChange={(e) => { setEmailOrPhone(e.target.value); setLoginError(''); }}
+                          required
+                          autoFocus
+                        />
+                      </div>
+                      <div className="input-group">
+                        <span className="input-label">Senha</span>
+                        <input
+                          type="password"
+                          className="text-input"
+                          placeholder="••••••••"
+                          value={loginPassword}
+                          onChange={(e) => { setLoginPassword(e.target.value); setLoginError(''); }}
+                          required
+                        />
+                      </div>
+
+                      {loginError && (
+                        <p style={{ fontSize: '12px', color: 'var(--color-sem-resposta)', textAlign: 'center', marginTop: '-8px' }}>
+                          {loginError}
+                        </p>
+                      )}
+
+                      <button type="submit" className="btn-primary">
+                        <LogIn size={14} style={{ marginRight: '6px' }} />
+                        Entrar no Painel
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => { setShowBarberLogin(false); setLoginError(''); setEmailOrPhone(''); setLoginPassword(''); }}
+                        style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '12px', textAlign: 'center' }}
+                      >
+                        Cancelar
+                      </button>
+                    </form>
+                  </div>
+                </div>
+              )}
+            </div>
           ) : (
             /* Barber Control Panel */
             !currentUser ? (
-              /* Mock Login Screen */
+              /* Barber Login Screen (accessed via direct /barber route or role switch) */
               <div className="login-screen">
                 <div className="login-card">
                   <div className="login-header">
-                    <div className="login-logo">💈</div>
-                    <h2 className="login-title">Barber One</h2>
-                    <p className="login-subtitle">Sistema inteligente para Barbeiro Autônomo</p>
+                    <div className="login-logo">✂️</div>
+                    <h2 className="login-title">Área do Barbeiro</h2>
+                    <p className="login-subtitle">Acesso exclusivo — Barbearia Sr. Miranda</p>
                   </div>
 
                   <form onSubmit={handleLoginSubmit} className="login-form">
                     <div className="input-group">
-                      <span className="input-label">E-mail ou WhatsApp</span>
+                      <span className="input-label">E-mail</span>
                       <input
-                        type="text"
+                        type="email"
                         className="text-input"
-                        placeholder="Ex: miranda@barber.com.br ou admin"
+                        placeholder="seu@email.com.br"
                         value={emailOrPhone}
-                        onChange={(e) => setEmailOrPhone(e.target.value)}
+                        onChange={(e) => { setEmailOrPhone(e.target.value); setLoginError(''); }}
+                        required
+                      />
+                    </div>
+                    <div className="input-group">
+                      <span className="input-label">Senha</span>
+                      <input
+                        type="password"
+                        className="text-input"
+                        placeholder="••••••••"
+                        value={loginPassword}
+                        onChange={(e) => { setLoginPassword(e.target.value); setLoginError(''); }}
                         required
                       />
                     </div>
 
-                    <button type="submit" className="btn-primary" onClick={() => setLoginMethod('email')}>
-                      Acessar Painel
+                    {loginError && (
+                      <p style={{ fontSize: '12px', color: 'var(--color-sem-resposta)', textAlign: 'center', marginTop: '-8px' }}>
+                        {loginError}
+                      </p>
+                    )}
+
+                    <button type="submit" className="btn-primary">
+                      <LogIn size={14} style={{ marginRight: '6px' }} />
+                      Entrar no Painel
                     </button>
-                    
-                    <div className="login-divider">Ou acesse com</div>
-                    
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      <button 
-                        type="button" 
-                        className="social-login-btn" 
-                        style={{ flex: 1 }}
-                        onClick={() => {
-                          setEmailOrPhone('miranda.google@gmail.com');
-                          login('google', { emailOrPhone: 'miranda.google@gmail.com', name: 'Miranda Google' });
-                        }}
-                      >
-                        🌐 Google
-                      </button>
-                      <button 
-                        type="button" 
-                        className="social-login-btn" 
-                        style={{ flex: 1 }}
-                        onClick={() => {
-                          setEmailOrPhone('11988887777');
-                          login('whatsapp', { emailOrPhone: '11988887777', name: 'Miranda WhatsApp' });
-                        }}
-                      >
-                        💬 WhatsApp
-                      </button>
-                    </div>
-                    
-                    <p style={{ fontSize: '11px', color: 'var(--text-muted)', textAlign: 'center', lineHeight: '1.4' }}>
-                      Dica: use <strong>admin</strong> ou qualquer texto com <strong>miranda</strong> para logar como Barbeiro. Outros logam como Cliente de teste.
-                    </p>
+
+                    <button
+                      type="button"
+                      onClick={() => { setActiveView('client'); setLoginError(''); }}
+                      style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '12px', textAlign: 'center' }}
+                    >
+                      ← Voltar para Agendamentos
+                    </button>
                   </form>
                 </div>
               </div>

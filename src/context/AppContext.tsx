@@ -45,7 +45,7 @@ interface AppContextType {
   simulatedNotification: string | null;
   setActiveView: (view: 'barber' | 'client') => void;
   setBarberSubView: (view: 'dashboard' | 'agenda' | 'clientes' | 'financeiro' | 'configuracoes') => void;
-  login: (method: 'google' | 'email' | 'whatsapp', details: { emailOrPhone: string; name?: string }) => void;
+  login: (method: 'google' | 'email' | 'whatsapp', details: { emailOrPhone: string; name?: string; password?: string }) => boolean;
   logout: () => void;
   addService: (service: { name: string; category: string; price: number; duration: number; color: string }) => void;
   updateService: (id: string, updated: Partial<{ id: string; name: string; category: string; price: number; duration: number; color: string; status: 'active' | 'inactive' }>) => void;
@@ -85,6 +85,10 @@ const defaultConfig: AgendaConfig = {
   toleranceTime: 10, // 10 minutes
   notificationTime: 10 // 10 minutes before ending
 };
+// Barber access credentials (in production these would be server-validated)
+const BARBER_EMAIL = 'miranda@barbeariasrmiranda.com.br';
+const BARBER_PASSWORD = 'Miranda@2025';
+
 
 // Initial services
 const defaultServices = [
@@ -97,169 +101,13 @@ const defaultServices = [
 ];
 
 // Initial mock clients
-const defaultClients: Client[] = [
-  {
-    id: 'c1',
-    name: 'Carlos Oliveira',
-    phone: '11988887777',
-    whatsapp: '11988887777',
-    birthDate: '1992-05-15',
-    instagram: '@carlos_oli',
-    notes: 'Gosta de degradê navalhado. Usa pomada efeito seco.',
-    hairPreference: 'Degradê baixo e Barba alinhada com toalha quente.',
-    photos: [],
-    lastVisit: '2026-06-28',
-    visitCount: 12,
-    totalSpent: 480,
-    avgInterval: 15,
-    loyaltyCount: 2
-  },
-  {
-    id: 'c2',
-    name: 'Roberto Souza',
-    phone: '11977776666',
-    whatsapp: '11977776666',
-    birthDate: '1988-11-20',
-    instagram: '@robertinho_s',
-    notes: 'Corte clássico tesoura. Sem barba.',
-    hairPreference: 'Social na tesoura, bem discreto.',
-    photos: [],
-    lastVisit: '2026-07-01',
-    visitCount: 8,
-    totalSpent: 320,
-    avgInterval: 20,
-    loyaltyCount: 8
-  },
-  {
-    id: 'c3',
-    name: 'Arthur Mendes',
-    phone: '11966665555',
-    whatsapp: '11966665555',
-    birthDate: '1995-03-10',
-    instagram: '@arthur_mendes',
-    notes: 'Sempre faz corte, barba e sobrancelha. Gosta de risquinho na sobrancelha.',
-    hairPreference: 'Corte degradê médio com risca lateral e pigmentação leve na barba.',
-    photos: [],
-    lastVisit: '2026-07-05',
-    visitCount: 5,
-    totalSpent: 380,
-    avgInterval: 18,
-    loyaltyCount: 5
-  },
-  {
-    id: 'c4',
-    name: 'Marcos Vinícius',
-    phone: '11955554444',
-    whatsapp: '11955554444',
-    birthDate: '2001-08-25',
-    instagram: '@marcos_vini',
-    notes: 'Corte Buzz Cut (máquina 2). Sempre rápido.',
-    hairPreference: 'Corte curto uniforme.',
-    photos: [],
-    lastVisit: '2026-06-15',
-    visitCount: 15,
-    totalSpent: 450,
-    avgInterval: 25,
-    loyaltyCount: 0
-  }
-];
+const defaultClients: Client[] = [];
 
 // Initial mock transactions (populate past revenue data)
-const defaultTransactions = (): Transaction[] => {
-  const list: Transaction[] = [];
-  const dates = ['2026-07-08', '2026-07-09', '2026-07-10', '2026-07-11'];
-  
-  // Add some inputs
-  dates.forEach((d, i) => {
-    list.push({
-      id: `t-in-1-${i}`,
-      type: 'entrada',
-      description: 'Atendimento Carlos Oliveira',
-      amount: 40,
-      date: d,
-      category: 'Serviço',
-      paymentMethod: 'pix'
-    });
-    list.push({
-      id: `t-in-2-${i}`,
-      type: 'entrada',
-      description: 'Atendimento Roberto Souza',
-      amount: 30,
-      date: d,
-      category: 'Serviço',
-      paymentMethod: 'cartao'
-    });
-    list.push({
-      id: `t-in-3-${i}`,
-      type: 'entrada',
-      description: 'Atendimento Arthur Mendes',
-      amount: 80,
-      date: d,
-      category: 'Serviço',
-      paymentMethod: 'pix'
-    });
-    // Add one expense
-    list.push({
-      id: `t-out-${i}`,
-      type: 'saida',
-      description: 'Material de Limpeza / Pomadas',
-      amount: i % 2 === 0 ? 50 : 25,
-      date: d,
-      category: 'Suprimentos'
-    });
-  });
-  return list;
-};
+const defaultTransactions = (): Transaction[] => [];
 
 // Initial mock appointments
-const defaultAppointments = (todayStr: string): Appointment[] => [
-  {
-    id: 'app-1',
-    clientName: 'Carlos Oliveira',
-    clientPhone: '11988887777',
-    clientStatus: 'finalizado',
-    date: todayStr,
-    startTime: '09:00',
-    duration: 30,
-    services: [{ name: 'Corte Tradicional', price: 40, duration: 30 }],
-    totalValue: 40,
-    status: 'finalizado',
-    startedAt: `${todayStr}T09:00:00.000Z`,
-    finishedAt: `${todayStr}T09:28:00.000Z`,
-    paymentMethod: 'pix'
-  },
-  {
-    id: 'app-2',
-    clientName: 'Roberto Souza',
-    clientPhone: '11977776666',
-    clientStatus: 'presente',
-    date: todayStr,
-    startTime: '10:30',
-    duration: 50,
-    services: [
-      { name: 'Corte Tradicional', price: 40, duration: 30 },
-      { name: 'Barba Premium', price: 30, duration: 20 }
-    ],
-    totalValue: 70,
-    status: 'pendente'
-  },
-  {
-    id: 'app-3',
-    clientName: 'Arthur Mendes',
-    clientPhone: '11966665555',
-    clientStatus: 'sem_resposta',
-    date: todayStr,
-    startTime: '13:00',
-    duration: 65,
-    services: [
-      { name: 'Corte Tradicional', price: 40, duration: 30 },
-      { name: 'Pigmentação', price: 20, duration: 15 },
-      { name: 'Escova', price: 25, duration: 20 }
-    ],
-    totalValue: 85,
-    status: 'pendente'
-  }
-];
+const defaultAppointments = (_todayStr: string): Appointment[] => [];
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const getTodayStr = () => new Date().toISOString().split('T')[0];
@@ -291,12 +139,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return saved ? JSON.parse(saved) : defaultConfig;
   });
 
-  const [activeView, setActiveView] = useState<'barber' | 'client'>('barber');
+  const [activeView, setActiveView] = useState<'barber' | 'client'>('client');
   const [barberSubView, setBarberSubView] = useState<AppContextType['barberSubView']>('dashboard');
   
   const [currentUser, setCurrentUser] = useState<AppContextType['currentUser']>(() => {
     const saved = localStorage.getItem('barber_user');
-    return saved ? JSON.parse(saved) : { name: 'Miranda', email: 'contato@srmiranda.com.br', role: 'barber' };
+    return saved ? JSON.parse(saved) : null;
   });
 
   const [activeAppointmentId, setActiveAppointmentId] = useState<string | null>(() => {
@@ -430,20 +278,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []);
 
   // Action methods
-  const login = (_method: 'google' | 'email' | 'whatsapp', details: { emailOrPhone: string; name?: string }) => {
-    let role: 'barber' | 'client' = 'client';
-    // Assume contact@srmiranda.com.br or admin is barber
-    if (details.emailOrPhone.includes('miranda') || details.emailOrPhone === 'admin') {
-      role = 'barber';
+  const login = (_method: 'google' | 'email' | 'whatsapp', details: { emailOrPhone: string; name?: string; password?: string }): boolean => {
+    // Only the registered barber email + password combo unlocks barber access
+    if (details.emailOrPhone.toLowerCase() === BARBER_EMAIL && details.password === BARBER_PASSWORD) {
+      const user = {
+        name: 'Sr. Miranda',
+        email: BARBER_EMAIL,
+        phone: '',
+        role: 'barber' as const
+      };
+      setCurrentUser(user);
+      setActiveView('barber');
+      return true;
     }
-    const user = {
-      name: details.name || (role === 'barber' ? 'Miranda' : 'Cliente'),
-      email: details.emailOrPhone.includes('@') ? details.emailOrPhone : '',
-      phone: !details.emailOrPhone.includes('@') ? details.emailOrPhone : '',
-      role
-    };
-    setCurrentUser(user);
-    setActiveView(role);
+    // Wrong credentials
+    return false;
   };
 
   const logout = () => {
