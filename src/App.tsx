@@ -161,7 +161,9 @@ const AppContent: React.FC = () => {
     setActiveView,
     setBarberSubView,
     login,
-    logout
+    logout,
+    isClosedEmergency,
+    setIsClosedEmergency
   } = useApp();
 
   // Login form helper states
@@ -535,17 +537,40 @@ const AppContent: React.FC = () => {
               /* Logged-in Barber Subviews */
               <>
                 {/* Profile Bar in Barber View */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-secondary)', padding: '12px 16px', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-secondary)', padding: '12px 16px', borderRadius: '12px', border: '1px solid var(--border-color)', gap: '10px' }}>
                   <div>
                     <span style={{ fontSize: '10px', color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: 600 }}>Barbeiro</span>
                     <div style={{ fontSize: '14px', fontWeight: '800' }}>Olá, Sr. {currentUser.name}</div>
                   </div>
-                  <button 
-                    onClick={logout}
-                    style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px' }}
-                  >
-                    <LogOut size={14} /> Sair
-                  </button>
+                  
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                    <button
+                      onClick={() => setIsClosedEmergency(!isClosedEmergency)}
+                      style={{
+                        background: isClosedEmergency ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)',
+                        border: `1px solid ${isClosedEmergency ? 'rgba(239, 68, 68, 0.3)' : 'rgba(16, 185, 129, 0.3)'}`,
+                        color: isClosedEmergency ? 'var(--color-sem-resposta)' : 'var(--color-present)',
+                        fontSize: '11px',
+                        padding: '6px 12px',
+                        borderRadius: '8px',
+                        fontWeight: '700',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px'
+                      }}
+                    >
+                      <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: isClosedEmergency ? '#ef4444' : '#10b981', display: 'inline-block' }} />
+                      {isClosedEmergency ? 'FECHADO (Emergência)' : 'ABERTO (Normal)'}
+                    </button>
+
+                    <button 
+                      onClick={logout}
+                      style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px' }}
+                    >
+                      <LogOut size={14} /> Sair
+                    </button>
+                  </div>
                 </div>
                 {renderBarberSubView()}
               </>

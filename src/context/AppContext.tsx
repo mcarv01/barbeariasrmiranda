@@ -55,6 +55,7 @@ interface AppContextType {
   nextAppointmentIdForTolerance: string | null;
   simulatedNotification: string | null;
   promotion: Promotion | null;
+  isClosedEmergency: boolean;
   setActiveView: (view: 'barber' | 'client') => void;
   setBarberSubView: (view: 'dashboard' | 'agenda' | 'clientes' | 'financeiro' | 'promocao' | 'configuracoes') => void;
   login: (method: 'google' | 'email' | 'whatsapp', details: { emailOrPhone: string; name?: string; password?: string; rememberMe?: boolean }) => boolean;
@@ -73,6 +74,7 @@ interface AppContextType {
   addTransaction: (transaction: Omit<Transaction, 'id' | 'date'>) => void;
   updateConfig: (updatedConfig: Partial<AgendaConfig>) => void;
   updatePromotion: (promo: Promotion | null) => void;
+  setIsClosedEmergency: (closed: boolean) => void;
   dismissNotification: () => void;
   simulateTimeJump: (seconds: number) => void;
   resetData: () => void;
@@ -199,6 +201,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return saved ? JSON.parse(saved) : null;
   });
 
+  const [isClosedEmergency, setIsClosedEmergency] = useState<boolean>(() => {
+    return localStorage.getItem('barber_emergency_closed') === 'true';
+  });
+
   const updatePromotion = (promo: Promotion | null) => {
     setPromotion(promo);
   };
@@ -218,6 +224,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localStorage.removeItem('barber_promotion');
     }
   }, [promotion]);
+
+  useEffect(() => {
+    localStorage.setItem('barber_emergency_closed', String(isClosedEmergency));
+  }, [isClosedEmergency]);
 
   // Save states to local storage
   useEffect(() => {
@@ -643,6 +653,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setSimulatedNotification(null);
     setNotifiedAppIds([]);
     setPromotion(null);
+    setIsClosedEmergency(false);
     localStorage.clear();
   };
 
@@ -663,6 +674,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         nextAppointmentIdForTolerance,
         simulatedNotification,
         promotion,
+        isClosedEmergency,
         setActiveView,
         setBarberSubView,
         login,
@@ -681,6 +693,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addTransaction,
         updateConfig,
         updatePromotion,
+        setIsClosedEmergency,
         dismissNotification,
         simulateTimeJump,
         resetData,

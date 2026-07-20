@@ -13,7 +13,8 @@ export const ClientFlow: React.FC = () => {
     clientSession,
     saveClientSession,
     clearClientSession,
-    promotion
+    promotion,
+    isClosedEmergency
   } = useApp();
 
   // step 0 = home/quick view, 1 = services, 2 = date+time, 3 = client info, 3.5 = payment, 4 = check-in
@@ -44,7 +45,7 @@ export const ClientFlow: React.FC = () => {
 
   // ── Promotion Popup Check ──────────────────────────────────────────────────
   useEffect(() => {
-    if (promotion && promotion.active && promotion.serviceIds && promotion.serviceIds.length > 0) {
+    if (promotion && promotion.active && promotion.serviceIds && promotion.serviceIds.length > 0 && !isClosedEmergency) {
       const today = new Date().toISOString().split('T')[0];
       if (promotion.date >= today) {
         const dismissed = sessionStorage.getItem('barber_promo_dismissed');
@@ -65,7 +66,7 @@ export const ClientFlow: React.FC = () => {
         }
       }
     }
-  }, [promotion, appointments, services]);
+  }, [promotion, appointments, services, isClosedEmergency]);
 
   // ── Pre-fill from saved client session ────────────────────────────────────
   useEffect(() => {
@@ -281,8 +282,47 @@ export const ClientFlow: React.FC = () => {
         </div>
       )}
 
+      {/* ── Emergency Closed Mode Banner ── */}
+      {isClosedEmergency && step !== 4 && !searchMode && (
+        <div className="card-premium" style={{ 
+          textAlign: 'center', 
+          padding: '40px 24px', 
+          border: '1px solid #ef4444', 
+          background: 'linear-gradient(135deg, #1c1212 0%, #140d0d 100%)',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: '16px',
+          borderRadius: '16px',
+          boxShadow: '0 0 20px rgba(239, 68, 68, 0.15)',
+          marginTop: '10px'
+        }}>
+          <div style={{
+            width: '64px',
+            height: '64px',
+            borderRadius: '50%',
+            background: 'rgba(239, 68, 68, 0.1)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            border: '1px solid rgba(239, 68, 68, 0.3)'
+          }}>
+            <span style={{ fontSize: '32px' }}>⚠️</span>
+          </div>
+          <div>
+            <h3 style={{ fontSize: '18px', fontWeight: '800', color: '#ef4444' }}>Barbearia Temporariamente Fechada</h3>
+            <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '8px', lineHeight: '1.5' }}>
+              O barbeiro precisou se ausentar temporariamente para resolver uma emergência rápida. Os agendamentos estão suspensos no momento.
+            </p>
+            <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '6px' }}>
+              Voltaremos às atividades normais em breve! Agradecemos a compreensão.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* ── STEP 0: Home — Quick Slots + Client Greeting ── */}
-      {step === 0 && !searchMode && (
+      {step === 0 && !searchMode && !isClosedEmergency && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
 
           {/* Client greeting if session exists */}
@@ -463,7 +503,7 @@ export const ClientFlow: React.FC = () => {
       )}
 
       {/* ── Progress Bar (steps 1, 2, 3, 3.5) ── */}
-      {(step === 1 || step === 2 || step === 3 || step === 3.5) && !searchMode && (
+      {(step === 1 || step === 2 || step === 3 || step === 3.5) && !searchMode && !isClosedEmergency && (
         <div className="wizard-progress-bar">
           <div className="wizard-progress-line" />
           <div
@@ -478,7 +518,7 @@ export const ClientFlow: React.FC = () => {
       )}
 
       {/* ── STEP 1: Service Selection ── */}
-      {step === 1 && !searchMode && (
+      {step === 1 && !searchMode && !isClosedEmergency && (
         <div className="card-premium" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <h3 className="quick-actions-title">1. Selecione os Serviços</h3>
@@ -537,7 +577,7 @@ export const ClientFlow: React.FC = () => {
       )}
 
       {/* ── STEP 2: Calendar & Timing ── */}
-      {step === 2 && !searchMode && (
+      {step === 2 && !searchMode && !isClosedEmergency && (
         <div className="card-premium" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <h3 className="quick-actions-title">2. Escolha Data e Horário</h3>
 
@@ -590,7 +630,7 @@ export const ClientFlow: React.FC = () => {
       )}
 
       {/* ── STEP 3: Client Info ── */}
-      {step === 3 && !searchMode && (
+      {step === 3 && !searchMode && !isClosedEmergency && (
         <div className="card-premium" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <h3 className="quick-actions-title">3. Confirme seus Dados</h3>
 
@@ -664,7 +704,7 @@ export const ClientFlow: React.FC = () => {
       )}
 
       {/* ── STEP 3.5: Payment ── */}
-      {step === 3.5 && !searchMode && (
+      {step === 3.5 && !searchMode && !isClosedEmergency && (
         <div className="card-premium" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <h3 className="quick-actions-title">🔑 Forma de Pagamento</h3>
 
