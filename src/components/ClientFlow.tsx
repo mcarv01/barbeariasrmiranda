@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { getAvailableSlots } from '../utils/scheduleAlgorithm';
-import { Check, MapPin, ArrowRight, Clipboard, Calendar, Clock, User, X, ChevronRight } from 'lucide-react';
+import { Check, MapPin, ArrowRight, Clipboard, Calendar, Clock, User, X, ChevronRight, Tag } from 'lucide-react';
 
 export const ClientFlow: React.FC = () => {
   const {
@@ -12,7 +12,8 @@ export const ClientFlow: React.FC = () => {
     updateClientStatus,
     clientSession,
     saveClientSession,
-    clearClientSession
+    clearClientSession,
+    promotion
   } = useApp();
 
   // step 0 = home/quick view, 1 = services, 2 = date+time, 3 = client info, 3.5 = payment, 4 = check-in
@@ -36,7 +37,34 @@ export const ClientFlow: React.FC = () => {
   // Quick booking: slot clicked from home → service picker opens
   const [quickPickerOpen, setQuickPickerOpen] = useState(false);
 
+  // Popup de promoção
+  const [showPromoPopup, setShowPromoPopup] = useState(false);
+
   const todayStr = new Date().toISOString().split('T')[0];
+
+  // ── Promotion Popup Check ──────────────────────────────────────────────────
+  useEffect(() => {
+    if (promotion && promotion.active) {
+      const today = new Date().toISOString().split('T')[0];
+      if (promotion.date >= today) {
+        const dismissed = sessionStorage.getItem('barber_promo_dismissed');
+        if (!dismissed) {
+          // Count active/pending spots
+          const promoService = services.find((s) => s.id === promotion.serviceId);
+          const bookedCount = appointments.filter(
+            (app) =>
+              app.date === promotion.date &&
+              app.status !== 'cancelado' &&
+              app.services.some((s) => s.name === promoService?.name)
+          ).length;
+
+          if (promotion.maxSlots - bookedCount > 0) {
+            setShowPromoPopup(true);
+          }
+        }
+      }
+    }
+  }, [promotion, appointments, services]);
 
   // ── Pre-fill from saved client session ────────────────────────────────────
   useEffect(() => {
@@ -49,7 +77,18 @@ export const ClientFlow: React.FC = () => {
   // ── Calculated totals ─────────────────────────────────────────────────────
   const selectedServices = services.filter((s) => selectedServiceIds.includes(s.id));
   const totalDuration = selectedServices.reduce((acc, s) => acc + s.duration, 0);
-  const totalValue = selectedServices.reduce((acc, s) => acc + s.price, 0);
+
+  const isPromoApplicable = !!(
+    promotion &&
+    promotion.active &&
+    selectedDate === promotion.date &&
+    selectedServiceIds.length === 1 &&
+    selectedServiceIds[0] === promotion.serviceId
+  );
+
+  const totalValue = isPromoApplicable
+    ? promotion.price
+    : selectedServices.reduce((acc, s) => acc + s.price, 0);
 
   // Today's quick slots (minimum 30-min window, for home preview)
   const todaySlots = getAvailableSlots(todayStr, 30, appointments, config, new Date());
@@ -108,7 +147,7 @@ export const ClientFlow: React.FC = () => {
 
     const appServices = selectedServices.map((s) => ({
       name: s.name,
-      price: s.price,
+      price: isPromoApplicable ? promotion.price : s.price,
       duration: s.duration
     }));
 
@@ -808,6 +847,181 @@ export const ClientFlow: React.FC = () => {
       )}
 
       </div>{/* end padded content wrapper */}
+
+      {/* ── POPUP DE PROMOÇÃO RELÂMPAGO ── */}
+      {showPromoPopup && promotion && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(0, 0, 0, 0.85)',
+          backdropFilter: 'blur(8px)',
+          zIndex: 10000,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '20px'
+        }}>
+          <div style={{
+            background: 'var(--bg-secondary)',
+            width: '100%',
+            maxWidth: '420px',
+            borderRadius: '20px',
+            overflow: 'hidden',
+            border: '1px solid var(--accent-gold)',
+            boxShadow: '0 0 30px rgba(212, 175, 55, 0.25)',
+            display: 'flex',
+            flexDirection: 'column',
+            position: 'relative'
+          }}>
+            {/* Close button */}
+            <button
+              onClick={() => {
+                setShowPromoPopup(false);
+                sessionStorage.setItem('barber_promo_dismissed', 'true');
+              }}
+              style={{
+                position: 'absolute',
+                top: '12px',
+                right: '12px',
+                background: 'rgba(0, 0, 0, 0.5)',
+                border: '1px solid rgba(255, 255, 255, 0.2)',
+                borderRadius: '50%',
+                width: '32px',
+                height: '32px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                zIndex: 10
+              }}
+            >
+              <X size={16} color="white" />
+            </button>
+
+            {/* Banner image or fallback gradient */}
+            {promotion.bannerImage ? (
+              <div style={{ width: '100%', height: '180px', overflow: 'hidden', borderBottom: '1px solid var(--border-color)' }}>
+                <img src={promotion.bannerImage} alt={promotion.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              </div>
+            ) : (
+              <div style={{
+                width: '100%',
+                height: '140px',
+                background: 'linear-gradient(135deg, #1a150c 0%, #2c2211 100%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderBottom: '1px solid var(--border-color)',
+                position: 'relative'
+              }}>
+                <div style={{ position: 'absolute', opacity: 0.1, fontSize: '80px' }}>💈</div>
+                <Tag size={48} color="var(--accent-gold)" style={{ zIndex: 1, opacity: 0.8 }} />
+              </div>
+            )}
+
+            {/* Content */}
+            <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div style={{ textAlign: 'center' }}>
+                <span className="client-mini-label" style={{ background: 'var(--accent-gold-glow)', color: 'var(--accent-gold)', fontWeight: '800' }}>
+                  🔥 PROMOÇÃO RELÂMPAGO
+                </span>
+                <h3 style={{ fontSize: '20px', fontWeight: '800', marginTop: '10px', color: 'white' }}>{promotion.title}</h3>
+                
+                {/* Calculate remaining slots inside the modal */}
+                {(() => {
+                  const promoSrv = services.find(s => s.id === promotion.serviceId);
+                  const booked = appointments.filter(
+                    (app) =>
+                      app.date === promotion.date &&
+                      app.status !== 'cancelado' &&
+                      app.services.some((s) => s.name === promoSrv?.name)
+                  ).length;
+                  const left = Math.max(0, promotion.maxSlots - booked);
+                  return (
+                    <div style={{
+                      display: 'inline-block',
+                      background: 'rgba(239, 68, 68, 0.15)',
+                      border: '1px solid rgba(239, 68, 68, 0.3)',
+                      color: 'var(--color-sem-resposta)',
+                      fontSize: '12px',
+                      fontWeight: '700',
+                      padding: '4px 10px',
+                      borderRadius: '20px',
+                      marginTop: '8px'
+                    }}>
+                      Apenas {left} de {promotion.maxSlots} vagas restantes!
+                    </div>
+                  );
+                })()}
+              </div>
+
+              {/* Details table */}
+              <div style={{ background: 'var(--bg-primary)', padding: '14px', borderRadius: '10px', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                  <span style={{ color: 'var(--text-secondary)' }}>Serviço:</span>
+                  <span style={{ fontWeight: '700', color: 'white' }}>{services.find(s => s.id === promotion.serviceId)?.name}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                  <span style={{ color: 'var(--text-secondary)' }}>Data:</span>
+                  <span style={{ fontWeight: '700', color: 'white' }}>{promotion.date.split('-').reverse().join('/')}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', borderTop: '1px solid var(--border-color)', paddingTop: '8px', marginTop: '4px' }}>
+                  <span style={{ color: 'var(--text-secondary)' }}>Preço Promocional:</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ textDecoration: 'line-through', fontSize: '12px', color: 'var(--text-muted)' }}>
+                      R$ {services.find(s => s.id === promotion.serviceId)?.price.toFixed(2)}
+                    </span>
+                    <span style={{ fontWeight: '800', color: 'var(--accent-gold)', fontSize: '16px' }}>
+                      R$ {promotion.price.toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <button
+                onClick={() => {
+                  setSelectedServiceIds([promotion.serviceId]);
+                  setSelectedDate(promotion.date);
+                  setStep(2); // ir direto para o passo de horários
+                  setShowPromoPopup(false);
+                  sessionStorage.setItem('barber_promo_dismissed', 'true');
+                }}
+                className="btn-primary"
+                style={{
+                  width: '100%',
+                  padding: '14px',
+                  background: 'var(--accent-gold-gradient)',
+                  color: 'black',
+                  fontWeight: '800',
+                  fontSize: '15px',
+                  border: 'none',
+                  boxShadow: '0 4px 15px rgba(212, 175, 55, 0.3)'
+                }}
+              >
+                Agende agora mesmo!
+              </button>
+
+              <button
+                onClick={() => {
+                  setShowPromoPopup(false);
+                  sessionStorage.setItem('barber_promo_dismissed', 'true');
+                }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--text-muted)',
+                  fontSize: '12px',
+                  cursor: 'pointer',
+                  textDecoration: 'underline',
+                  textAlign: 'center'
+                }}
+              >
+                Não, obrigado. Quero agendar outro serviço.
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -5,6 +5,7 @@ import { Agenda } from './components/Agenda';
 import { Clientes } from './components/Clientes';
 import { Financeiro } from './components/Financeiro';
 import { Configuracoes } from './components/Configuracoes';
+import { Promocao } from './components/Promocao';
 import { ClientFlow } from './components/ClientFlow';
 import { usePWAInstall } from './hooks/usePWAInstall';
 import { 
@@ -18,7 +19,8 @@ import {
   Smartphone,
   LogIn,
   Download,
-  X
+  X,
+  Tag
 } from 'lucide-react';
 import './index.css';
 import './App.css';
@@ -198,6 +200,8 @@ const AppContent: React.FC = () => {
         return <Clientes />;
       case 'financeiro':
         return <Financeiro />;
+      case 'promocao':
+        return <Promocao />;
       case 'configuracoes':
         return <Configuracoes />;
       default:
@@ -582,6 +586,14 @@ const AppContent: React.FC = () => {
             >
               <DollarSign />
               <span>Financeiro</span>
+            </button>
+
+            <button 
+              className={`nav-item ${barberSubView === 'promocao' ? 'active' : ''}`}
+              onClick={() => setBarberSubView('promocao')}
+            >
+              <Tag />
+              <span>Promoções</span>
             </button>
             
             <button 

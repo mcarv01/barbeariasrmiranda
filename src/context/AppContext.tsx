@@ -29,6 +29,17 @@ export interface Transaction {
   paymentMethod?: 'pix' | 'cartao' | 'dinheiro';
 }
 
+export interface Promotion {
+  id: string;
+  title: string;
+  date: string; // YYYY-MM-DD
+  price: number;
+  serviceId: string;
+  maxSlots: number;
+  bannerImage?: string; // base64 string
+  active: boolean;
+}
+
 interface AppContextType {
   services: { id: string; name: string; category: string; price: number; duration: number; color: string; status: 'active' | 'inactive' }[];
   clients: Client[];
@@ -36,15 +47,16 @@ interface AppContextType {
   transactions: Transaction[];
   config: AgendaConfig;
   activeView: 'barber' | 'client';
-  barberSubView: 'dashboard' | 'agenda' | 'clientes' | 'financeiro' | 'configuracoes';
+  barberSubView: 'dashboard' | 'agenda' | 'clientes' | 'financeiro' | 'promocao' | 'configuracoes';
   currentUser: { name: string; email: string; role: 'barber' | 'client'; phone?: string } | null;
   activeAppointmentId: string | null;
   activeTimer: number; // remaining seconds
   toleranceTimer: number; // remaining seconds of tolerance for next client
   nextAppointmentIdForTolerance: string | null;
   simulatedNotification: string | null;
+  promotion: Promotion | null;
   setActiveView: (view: 'barber' | 'client') => void;
-  setBarberSubView: (view: 'dashboard' | 'agenda' | 'clientes' | 'financeiro' | 'configuracoes') => void;
+  setBarberSubView: (view: 'dashboard' | 'agenda' | 'clientes' | 'financeiro' | 'promocao' | 'configuracoes') => void;
   login: (method: 'google' | 'email' | 'whatsapp', details: { emailOrPhone: string; name?: string; password?: string; rememberMe?: boolean }) => boolean;
   logout: () => void;
   addService: (service: { name: string; category: string; price: number; duration: number; color: string }) => void;
@@ -60,6 +72,7 @@ interface AppContextType {
   updateClientStatus: (appointmentId: string, status: 'presente' | 'a_caminho' | 'sem_resposta') => void;
   addTransaction: (transaction: Omit<Transaction, 'id' | 'date'>) => void;
   updateConfig: (updatedConfig: Partial<AgendaConfig>) => void;
+  updatePromotion: (promo: Promotion | null) => void;
   dismissNotification: () => void;
   simulateTimeJump: (seconds: number) => void;
   resetData: () => void;
@@ -181,6 +194,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return saved ? JSON.parse(saved) : null;
   });
 
+  const [promotion, setPromotion] = useState<Promotion | null>(() => {
+    const saved = localStorage.getItem('barber_promotion');
+    return saved ? JSON.parse(saved) : null;
+  });
+
+  const updatePromotion = (promo: Promotion | null) => {
+    setPromotion(promo);
+  };
+
   useEffect(() => {
     if (clientSession) {
       localStorage.setItem('barber_client_session', JSON.stringify(clientSession));
@@ -188,6 +210,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localStorage.removeItem('barber_client_session');
     }
   }, [clientSession]);
+
+  useEffect(() => {
+    if (promotion) {
+      localStorage.setItem('barber_promotion', JSON.stringify(promotion));
+    } else {
+      localStorage.removeItem('barber_promotion');
+    }
+  }, [promotion]);
 
   // Save states to local storage
   useEffect(() => {
@@ -612,6 +642,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setNextAppointmentIdForTolerance(null);
     setSimulatedNotification(null);
     setNotifiedAppIds([]);
+    setPromotion(null);
     localStorage.clear();
   };
 
@@ -631,6 +662,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         toleranceTimer,
         nextAppointmentIdForTolerance,
         simulatedNotification,
+        promotion,
         setActiveView,
         setBarberSubView,
         login,
@@ -648,6 +680,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateClientStatus,
         addTransaction,
         updateConfig,
+        updatePromotion,
         dismissNotification,
         simulateTimeJump,
         resetData,
