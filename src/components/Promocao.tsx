@@ -8,7 +8,7 @@ export const Promocao: React.FC = () => {
   const [title, setTitle] = useState('');
   const [date, setDate] = useState('');
   const [price, setPrice] = useState('');
-  const [serviceId, setServiceId] = useState('');
+  const [serviceIds, setServiceIds] = useState<string[]>([]);
   const [maxSlots, setMaxSlots] = useState('8');
   const [bannerImage, setBannerImage] = useState<string | undefined>(undefined);
   const [active, setActive] = useState(false);
@@ -19,7 +19,7 @@ export const Promocao: React.FC = () => {
       setTitle(promotion.title);
       setDate(promotion.date);
       setPrice(String(promotion.price));
-      setServiceId(promotion.serviceId);
+      setServiceIds(promotion.serviceIds || []);
       setMaxSlots(String(promotion.maxSlots));
       setBannerImage(promotion.bannerImage);
       setActive(promotion.active);
@@ -30,9 +30,7 @@ export const Promocao: React.FC = () => {
       tomorrow.setDate(tomorrow.getDate() + 1);
       setDate(tomorrow.toISOString().split('T')[0]);
       setPrice('30');
-      if (services.length > 0) {
-        setServiceId(services[0].id);
-      }
+      setServiceIds([]);
       setMaxSlots('8');
       setBannerImage(undefined);
       setActive(false);
@@ -52,8 +50,8 @@ export const Promocao: React.FC = () => {
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title || !date || !price || !serviceId || !maxSlots) {
-      alert('Por favor, preencha todos os campos obrigatórios.');
+    if (!title || !date || !price || serviceIds.length === 0 || !maxSlots) {
+      alert('Por favor, preencha todos os campos obrigatórios (incluindo pelo menos um serviço).');
       return;
     }
 
@@ -62,7 +60,7 @@ export const Promocao: React.FC = () => {
       title,
       date,
       price: Number(price),
-      serviceId,
+      serviceIds,
       maxSlots: Number(maxSlots),
       bannerImage,
       active
@@ -78,14 +76,23 @@ export const Promocao: React.FC = () => {
     }
   };
 
+  const handleServiceToggle = (id: string) => {
+    setServiceIds(prev =>
+      prev.includes(id) ? prev.filter(sid => sid !== id) : [...prev, id]
+    );
+  };
+
   // Calculate booked count
-  const promoService = services.find(s => s.id === (promotion?.serviceId || serviceId));
+  const currentPromoServiceIds = promotion?.serviceIds || serviceIds;
+  const promoServices = services.filter(s => currentPromoServiceIds.includes(s.id));
+  const promoServiceNames = promoServices.map(s => s.name);
+
   const bookedCount = promotion
     ? appointments.filter(
         (app) =>
           app.date === promotion.date &&
           app.status !== 'cancelado' &&
-          app.services.some((s) => s.name === promoService?.name)
+          promoServiceNames.every((name) => app.services.some((s) => s.name === name))
       ).length
     : 0;
 
@@ -106,8 +113,11 @@ export const Promocao: React.FC = () => {
               <p style={{ fontSize: '13px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
                 <Calendar size={14} /> Data: {promotion.date.split('-').reverse().join('/')}
               </p>
-              <p style={{ fontSize: '13px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
-                <Percent size={14} /> Preço: <strong style={{ color: 'var(--accent-gold)' }}>R$ {promotion.price.toFixed(2)}</strong> (Serviço: {promoService?.name})
+              <p style={{ fontSize: '13px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'flex-start', gap: '6px', marginTop: '4px' }}>
+                <Percent size={14} style={{ marginTop: '2px' }} />
+                <span>
+                  Preço: <strong style={{ color: 'var(--accent-gold)' }}>R$ {promotion.price.toFixed(2)}</strong> (Combo de Serviços: {promoServiceNames.join(' + ') || 'Nenhum'})
+                </span>
               </p>
             </div>
             
@@ -165,7 +175,7 @@ export const Promocao: React.FC = () => {
               />
             </div>
             <div className="input-group" style={{ flex: 1 }}>
-              <span className="input-label">Preço Promocional (R$) *</span>
+              <span className="input-label">Preço Promocional do Combo (R$) *</span>
               <input 
                 type="number" 
                 step="0.01" 
@@ -178,32 +188,59 @@ export const Promocao: React.FC = () => {
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: '10px' }}>
-            <div className="input-group" style={{ flex: 2 }}>
-              <span className="input-label">Serviço com Desconto *</span>
-              <select 
-                className="text-input" 
-                value={serviceId} 
-                onChange={(e) => setServiceId(e.target.value)}
-                required
-              >
-                <option value="">Selecione um serviço...</option>
-                {services.filter(s => s.status === 'active').map(s => (
-                  <option key={s.id} value={s.id}>{s.name} (R$ {s.price.toFixed(2)})</option>
-                ))}
-              </select>
+          {/* Multiple Services checkboxes */}
+          <div className="input-group">
+            <span className="input-label">Serviços Inclusos na Promoção * (Selecione um ou mais)</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '6px' }}>
+              {services.filter(s => s.status === 'active').map(s => {
+                const isSelected = serviceIds.includes(s.id);
+                return (
+                  <div 
+                    key={s.id} 
+                    onClick={() => handleServiceToggle(s.id)}
+                    style={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      justifyContent: 'space-between',
+                      padding: '10px 14px', 
+                      background: 'var(--bg-tertiary)', 
+                      borderRadius: '8px', 
+                      border: `1px solid ${isSelected ? 'var(--accent-gold)' : 'var(--border-color)'}`,
+                      cursor: 'pointer',
+                      transition: 'all 0.15s'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div 
+                        style={{
+                          width: '20px', height: '20px', borderRadius: '6px',
+                          border: `2px solid ${isSelected ? 'var(--accent-gold)' : 'var(--border-color-hover)'}`,
+                          background: isSelected ? 'var(--accent-gold-glow)' : 'transparent',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          transition: 'all 0.15s'
+                        }}
+                      >
+                        {isSelected && <span style={{ color: 'var(--accent-gold)', fontSize: '13px', fontWeight: '800' }}>✓</span>}
+                      </div>
+                      <span style={{ fontSize: '13px', fontWeight: '600' }}>{s.name}</span>
+                    </div>
+                    <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>R$ {s.price.toFixed(2)}</span>
+                  </div>
+                );
+              })}
             </div>
-            <div className="input-group" style={{ flex: 1 }}>
-              <span className="input-label">Limite de Clientes *</span>
-              <input 
-                type="number" 
-                className="text-input" 
-                value={maxSlots} 
-                onChange={(e) => setMaxSlots(e.target.value)} 
-                required
-                min="1"
-              />
-            </div>
+          </div>
+
+          <div className="input-group">
+            <span className="input-label">Limite de Clientes (Vagas) *</span>
+            <input 
+              type="number" 
+              className="text-input" 
+              value={maxSlots} 
+              onChange={(e) => setMaxSlots(e.target.value)} 
+              required
+              min="1"
+            />
           </div>
 
           {/* Banner Upload */}

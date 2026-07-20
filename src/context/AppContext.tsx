@@ -34,7 +34,7 @@ export interface Promotion {
   title: string;
   date: string; // YYYY-MM-DD
   price: number;
-  serviceId: string;
+  serviceIds: string[];
   maxSlots: number;
   bannerImage?: string; // base64 string
   active: boolean;

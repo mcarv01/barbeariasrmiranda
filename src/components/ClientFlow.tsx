@@ -44,18 +44,19 @@ export const ClientFlow: React.FC = () => {
 
   // ── Promotion Popup Check ──────────────────────────────────────────────────
   useEffect(() => {
-    if (promotion && promotion.active) {
+    if (promotion && promotion.active && promotion.serviceIds && promotion.serviceIds.length > 0) {
       const today = new Date().toISOString().split('T')[0];
       if (promotion.date >= today) {
         const dismissed = sessionStorage.getItem('barber_promo_dismissed');
         if (!dismissed) {
           // Count active/pending spots
-          const promoService = services.find((s) => s.id === promotion.serviceId);
+          const promoServices = services.filter((s) => promotion.serviceIds.includes(s.id));
+          const promoServiceNames = promoServices.map((s) => s.name);
           const bookedCount = appointments.filter(
             (app) =>
               app.date === promotion.date &&
               app.status !== 'cancelado' &&
-              app.services.some((s) => s.name === promoService?.name)
+              promoServiceNames.every((name) => app.services.some((s) => s.name === name))
           ).length;
 
           if (promotion.maxSlots - bookedCount > 0) {
@@ -82,8 +83,8 @@ export const ClientFlow: React.FC = () => {
     promotion &&
     promotion.active &&
     selectedDate === promotion.date &&
-    selectedServiceIds.length === 1 &&
-    selectedServiceIds[0] === promotion.serviceId
+    selectedServiceIds.length === promotion.serviceIds.length &&
+    promotion.serviceIds.every((id) => selectedServiceIds.includes(id))
   );
 
   const totalValue = isPromoApplicable
@@ -145,9 +146,10 @@ export const ClientFlow: React.FC = () => {
   const handleBookingSubmit = () => {
     if (!clientName || !clientPhone || !selectedTime) return;
 
+    const originalTotal = selectedServices.reduce((acc, s) => acc + s.price, 0);
     const appServices = selectedServices.map((s) => ({
       name: s.name,
-      price: isPromoApplicable ? promotion.price : s.price,
+      price: isPromoApplicable && originalTotal > 0 ? (s.price / originalTotal) * promotion.price : s.price,
       duration: s.duration
     }));
 
@@ -929,12 +931,13 @@ export const ClientFlow: React.FC = () => {
                 
                 {/* Calculate remaining slots inside the modal */}
                 {(() => {
-                  const promoSrv = services.find(s => s.id === promotion.serviceId);
+                  const promoServices = services.filter((s) => promotion.serviceIds.includes(s.id));
+                  const promoServiceNames = promoServices.map((s) => s.name);
                   const booked = appointments.filter(
                     (app) =>
                       app.date === promotion.date &&
                       app.status !== 'cancelado' &&
-                      app.services.some((s) => s.name === promoSrv?.name)
+                      promoServiceNames.every((name) => app.services.some((s) => s.name === name))
                   ).length;
                   const left = Math.max(0, promotion.maxSlots - booked);
                   return (
@@ -958,8 +961,10 @@ export const ClientFlow: React.FC = () => {
               {/* Details table */}
               <div style={{ background: 'var(--bg-primary)', padding: '14px', borderRadius: '10px', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
-                  <span style={{ color: 'var(--text-secondary)' }}>Serviço:</span>
-                  <span style={{ fontWeight: '700', color: 'white' }}>{services.find(s => s.id === promotion.serviceId)?.name}</span>
+                  <span style={{ color: 'var(--text-secondary)' }}>Serviços:</span>
+                  <span style={{ fontWeight: '700', color: 'white', textAlign: 'right' }}>
+                    {services.filter((s) => promotion.serviceIds.includes(s.id)).map((s) => s.name).join(' + ')}
+                  </span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
                   <span style={{ color: 'var(--text-secondary)' }}>Data:</span>
@@ -969,7 +974,7 @@ export const ClientFlow: React.FC = () => {
                   <span style={{ color: 'var(--text-secondary)' }}>Preço Promocional:</span>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <span style={{ textDecoration: 'line-through', fontSize: '12px', color: 'var(--text-muted)' }}>
-                      R$ {services.find(s => s.id === promotion.serviceId)?.price.toFixed(2)}
+                      R$ {services.filter((s) => promotion.serviceIds.includes(s.id)).reduce((acc, s) => acc + s.price, 0).toFixed(2)}
                     </span>
                     <span style={{ fontWeight: '800', color: 'var(--accent-gold)', fontSize: '16px' }}>
                       R$ {promotion.price.toFixed(2)}
@@ -980,7 +985,7 @@ export const ClientFlow: React.FC = () => {
 
               <button
                 onClick={() => {
-                  setSelectedServiceIds([promotion.serviceId]);
+                  setSelectedServiceIds(promotion.serviceIds);
                   setSelectedDate(promotion.date);
                   setStep(2); // ir direto para o passo de horários
                   setShowPromoPopup(false);
