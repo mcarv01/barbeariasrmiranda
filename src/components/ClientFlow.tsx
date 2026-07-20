@@ -48,7 +48,7 @@ export const ClientFlow: React.FC = () => {
     if (promotion && promotion.active && promotion.serviceIds && promotion.serviceIds.length > 0 && !isClosedEmergency) {
       const today = new Date().toISOString().split('T')[0];
       if (promotion.date >= today) {
-        const dismissed = sessionStorage.getItem('barber_promo_dismissed');
+        const dismissed = sessionStorage.getItem('barber_promo_dismissed_' + promotion.id);
         if (!dismissed) {
           // Count active/pending spots
           const promoServices = services.filter((s) => promotion.serviceIds.includes(s.id));
@@ -919,7 +919,7 @@ export const ClientFlow: React.FC = () => {
             <button
               onClick={() => {
                 setShowPromoPopup(false);
-                sessionStorage.setItem('barber_promo_dismissed', 'true');
+                sessionStorage.setItem('barber_promo_dismissed_' + promotion.id, 'true');
               }}
               style={{
                 position: 'absolute',
@@ -1029,7 +1029,7 @@ export const ClientFlow: React.FC = () => {
                   setSelectedDate(promotion.date);
                   setStep(2); // ir direto para o passo de horários
                   setShowPromoPopup(false);
-                  sessionStorage.setItem('barber_promo_dismissed', 'true');
+                  sessionStorage.setItem('barber_promo_dismissed_' + promotion.id, 'true');
                 }}
                 className="btn-primary"
                 style={{
@@ -1049,7 +1049,7 @@ export const ClientFlow: React.FC = () => {
               <button
                 onClick={() => {
                   setShowPromoPopup(false);
-                  sessionStorage.setItem('barber_promo_dismissed', 'true');
+                  sessionStorage.setItem('barber_promo_dismissed_' + promotion.id, 'true');
                 }}
                 style={{
                   background: 'none',
