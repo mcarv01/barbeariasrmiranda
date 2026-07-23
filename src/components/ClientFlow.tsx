@@ -9,6 +9,7 @@ export const ClientFlow: React.FC = () => {
     appointments,
     config,
     addAppointment,
+    cancelAppointment,
     updateClientStatus,
     clientSession,
     saveClientSession,
@@ -914,6 +915,20 @@ export const ClientFlow: React.FC = () => {
               Instagram: {config.instagram || '@barbeariasrmiranda'}
             </p>
           </div>
+
+          <button
+            className="btn-secondary"
+            style={{ width: '100%', borderColor: 'rgba(239, 68, 68, 0.4)', color: '#ef4444' }}
+            onClick={() => {
+              if (confirm('Tem certeza que deseja cancelar seu agendamento? O horário será liberado imediatamente para outros clientes.')) {
+                cancelAppointment(currentApp.id);
+                alert('Seu agendamento foi cancelado com sucesso e o horário foi liberado.');
+                resetFlow();
+              }
+            }}
+          >
+            Cancelar Agendamento (Liberar Horário)
+          </button>
 
           <button className="btn-secondary" style={{ width: '100%' }} onClick={resetFlow}>
             Fazer Novo Agendamento
