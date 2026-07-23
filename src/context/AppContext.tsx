@@ -352,40 +352,58 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const handleCloudPayload = (payload: any) => {
+    if (!payload || !payload.type) return;
+    if (payload.type === 'NEW_APPOINTMENT' && payload.appointment) {
+      setAppointments((prev) => {
+        if (prev.some((a) => a.id === payload.appointment.id)) return prev;
+        return [...prev, payload.appointment];
+      });
+    } else if (payload.type === 'CANCEL_APPOINTMENT' && payload.id) {
+      setAppointments((prev) =>
+        prev.map((a) => (a.id === payload.id ? { ...a, status: 'cancelado' } : a))
+      );
+    } else if (payload.type === 'UPDATE_APPOINTMENT' && payload.appointment) {
+      setAppointments((prev) =>
+        prev.map((a) => (a.id === payload.appointment.id ? payload.appointment : a))
+      );
+    } else if (payload.type === 'SYNC_SERVICES' && Array.isArray(payload.services)) {
+      setServices(payload.services);
+      localStorage.setItem('barber_services', JSON.stringify(payload.services));
+    } else if (payload.type === 'SYNC_CONFIG' && payload.config) {
+      setConfig(payload.config);
+      localStorage.setItem('barber_config', JSON.stringify(payload.config));
+    }
+  };
+
   // Real-time Cloud Sync listener (syncs across all devices & browsers)
   useEffect(() => {
     const syncChannel = 'barbearia_sr_miranda_sync_v2';
 
-    // 1. Initial catch-up poll for recent bookings
-    fetch(`https://ntfy.sh/${syncChannel}/json?poll=1`)
-      .then((res) => res.text())
-      .then((text) => {
-        if (!text) return;
-        const lines = text.trim().split('\n');
-        lines.forEach((line) => {
-          try {
-            const data = JSON.parse(line);
-            if (data.message) {
-              const payload = JSON.parse(data.message);
-              if (payload.type === 'NEW_APPOINTMENT' && payload.appointment) {
-                setAppointments((prev) => {
-                  if (prev.some((a) => a.id === payload.appointment.id)) return prev;
-                  return [...prev, payload.appointment];
-                });
-              } else if (payload.type === 'SYNC_SERVICES' && Array.isArray(payload.services)) {
-                setServices(payload.services);
-                localStorage.setItem('barber_services', JSON.stringify(payload.services));
-              } else if (payload.type === 'SYNC_CONFIG' && payload.config) {
-                setConfig(payload.config);
-                localStorage.setItem('barber_config', JSON.stringify(payload.config));
+    const fetchLatestData = () => {
+      fetch(`https://ntfy.sh/${syncChannel}/json?poll=1`)
+        .then((res) => res.text())
+        .then((text) => {
+          if (!text) return;
+          const lines = text.trim().split('\n');
+          lines.forEach((line) => {
+            try {
+              const data = JSON.parse(line);
+              if (data.message) {
+                const payload = JSON.parse(data.message);
+                handleCloudPayload(payload);
               }
+            } catch (e) {
+              // ignore
             }
-          } catch (e) {
-            // ignore
-          }
-        });
-      })
-      .catch((err) => console.error('Catchup poll error:', err));
+          });
+        })
+        .catch((err) => console.error('Catchup poll error:', err));
+    };
+
+    // 1. Initial catch-up poll and fast 3s polling fallback
+    fetchLatestData();
+    const pollInterval = setInterval(fetchLatestData, 3000);
 
     // 2. Real-time stream via Server-Sent Events (SSE)
     let eventSource: EventSource | null = null;
@@ -396,26 +414,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const data = JSON.parse(event.data);
           if (data.message) {
             const payload = JSON.parse(data.message);
-            if (payload.type === 'NEW_APPOINTMENT' && payload.appointment) {
-              setAppointments((prev) => {
-                if (prev.some((a) => a.id === payload.appointment.id)) return prev;
-                return [...prev, payload.appointment];
-              });
-            } else if (payload.type === 'CANCEL_APPOINTMENT' && payload.id) {
-              setAppointments((prev) =>
-                prev.map((a) => (a.id === payload.id ? { ...a, status: 'cancelado' } : a))
-              );
-            } else if (payload.type === 'UPDATE_APPOINTMENT' && payload.appointment) {
-              setAppointments((prev) =>
-                prev.map((a) => (a.id === payload.appointment.id ? payload.appointment : a))
-              );
-            } else if (payload.type === 'SYNC_SERVICES' && Array.isArray(payload.services)) {
-              setServices(payload.services);
-              localStorage.setItem('barber_services', JSON.stringify(payload.services));
-            } else if (payload.type === 'SYNC_CONFIG' && payload.config) {
-              setConfig(payload.config);
-              localStorage.setItem('barber_config', JSON.stringify(payload.config));
-            }
+            handleCloudPayload(payload);
           }
         } catch (e) {
           // ignore
@@ -426,6 +425,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     return () => {
+      clearInterval(pollInterval);
       if (eventSource) eventSource.close();
     };
   }, []);
@@ -569,9 +569,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const startAppointment = (id: string) => {
     setActiveAppointmentId(id);
     const nowStr = new Date().toISOString();
-    setAppointments((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, status: 'em_atendimento', startedAt: nowStr } : a))
-    );
+    setAppointments((prev) => {
+      const next = prev.map((a) => (a.id === id ? { ...a, status: 'em_atendimento' as const, startedAt: nowStr } : a));
+      const updatedApp = next.find((a) => a.id === id);
+      if (updatedApp) broadcastCloudMessage({ type: 'UPDATE_APPOINTMENT', appointment: updatedApp });
+      return next;
+    });
     // Find appointment duration to set timer
     const app = appointments.find((a) => a.id === id);
     if (app) {
@@ -591,11 +594,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const finishedAtStr = new Date().toISOString();
     
     // 1. Update appointment status
-    setAppointments((prev) =>
-      prev.map((a) =>
-        a.id === id ? { ...a, status: 'finalizado', finishedAt: finishedAtStr, paymentMethod, clientStatus: 'finalizado' } : a
-      )
-    );
+    setAppointments((prev) => {
+      const next = prev.map((a) =>
+        a.id === id ? { ...a, status: 'finalizado' as const, finishedAt: finishedAtStr, paymentMethod, clientStatus: 'finalizado' as const } : a
+      );
+      const updatedApp = next.find((a) => a.id === id);
+      if (updatedApp) broadcastCloudMessage({ type: 'UPDATE_APPOINTMENT', appointment: updatedApp });
+      return next;
+    });
 
     // 2. Add transaction record
     setTransactions((prev) => [
@@ -650,9 +656,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const markNoShow = (id: string) => {
-    setAppointments((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, status: 'no_show', clientStatus: 'no_show' } : a))
-    );
+    setAppointments((prev) => {
+      const next = prev.map((a) => (a.id === id ? { ...a, status: 'no_show' as const, clientStatus: 'no_show' as const } : a));
+      const updatedApp = next.find((a) => a.id === id);
+      if (updatedApp) broadcastCloudMessage({ type: 'UPDATE_APPOINTMENT', appointment: updatedApp });
+      return next;
+    });
 
     const app = appointments.find((a) => a.id === id);
     if (app) {
@@ -678,9 +687,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateClientStatus = (appointmentId: string, status: 'presente' | 'a_caminho' | 'sem_resposta') => {
-    setAppointments((prev) =>
-      prev.map((a) => (a.id === appointmentId ? { ...a, clientStatus: status } : a))
-    );
+    setAppointments((prev) => {
+      const next = prev.map((a) => (a.id === appointmentId ? { ...a, clientStatus: status } : a));
+      const updatedApp = next.find((a) => a.id === appointmentId);
+      if (updatedApp) broadcastCloudMessage({ type: 'UPDATE_APPOINTMENT', appointment: updatedApp });
+      return next;
+    });
 
     // If client marks themselves as present, terminate their tolerance timer immediately!
     if (status === 'presente' && nextAppointmentIdForTolerance === appointmentId) {
