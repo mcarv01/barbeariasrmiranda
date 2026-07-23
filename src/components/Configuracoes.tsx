@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { Plus, Save, Info, Pencil, X, Trash2 } from 'lucide-react';
+import { Plus, Save, Info, Pencil, X, Trash2, RefreshCw } from 'lucide-react';
 
 export const Configuracoes: React.FC = () => {
   const {
@@ -10,7 +10,8 @@ export const Configuracoes: React.FC = () => {
     updateService,
     deleteService,
     updateConfig,
-    resetData
+    resetData,
+    syncAllDataToCloud
   } = useApp();
 
   // Shop details form
@@ -178,6 +179,31 @@ export const Configuracoes: React.FC = () => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
       
+      {/* Cloud Sync Manual Trigger */}
+      <div className="card-premium" style={{ border: '1px solid var(--accent-gold)', background: 'linear-gradient(135deg, rgba(212,175,55,0.08) 0%, rgba(0,0,0,0.4) 100%)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+          <div style={{ flex: 1, minWidth: '220px' }}>
+            <h3 className="quick-actions-title" style={{ margin: 0, color: 'var(--accent-gold)' }}>
+              ⚡ Sincronizar Preços e Dados com os Clientes
+            </h3>
+            <p style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px' }}>
+              Transmita instantaneamente os valores atualizados dos serviços, chave PIX, endereço e WhatsApp para todos os clientes em tempo real.
+            </p>
+          </div>
+          <button
+            type="button"
+            className="btn-primary"
+            style={{ padding: '10px 16px', fontSize: '12px', whiteSpace: 'nowrap' }}
+            onClick={() => {
+              syncAllDataToCloud();
+              alert('Tabela de preços, endereço, WhatsApp e chave PIX transmitidos em tempo real para todos os clientes!');
+            }}
+          >
+            <RefreshCw size={14} /> Enviar Atualização Agora
+          </button>
+        </div>
+      </div>
+
       {/* Shop Info Settings */}
       <div className="card-premium">
         <h3 className="quick-actions-title">Dados da Barbearia</h3>

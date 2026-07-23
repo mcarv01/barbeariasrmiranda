@@ -83,6 +83,7 @@ interface AppContextType {
   clientSession: { name: string; phone: string } | null;
   saveClientSession: (session: { name: string; phone: string }) => void;
   clearClientSession: () => void;
+  syncAllDataToCloud: () => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -371,6 +372,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                   if (prev.some((a) => a.id === payload.appointment.id)) return prev;
                   return [...prev, payload.appointment];
                 });
+              } else if (payload.type === 'SYNC_SERVICES' && Array.isArray(payload.services)) {
+                setServices(payload.services);
+                localStorage.setItem('barber_services', JSON.stringify(payload.services));
+              } else if (payload.type === 'SYNC_CONFIG' && payload.config) {
+                setConfig(payload.config);
+                localStorage.setItem('barber_config', JSON.stringify(payload.config));
               }
             }
           } catch (e) {
@@ -402,6 +409,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               setAppointments((prev) =>
                 prev.map((a) => (a.id === payload.appointment.id ? payload.appointment : a))
               );
+            } else if (payload.type === 'SYNC_SERVICES' && Array.isArray(payload.services)) {
+              setServices(payload.services);
+              localStorage.setItem('barber_services', JSON.stringify(payload.services));
+            } else if (payload.type === 'SYNC_CONFIG' && payload.config) {
+              setConfig(payload.config);
+              localStorage.setItem('barber_config', JSON.stringify(payload.config));
             }
           }
         } catch (e) {
@@ -461,15 +474,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       id: String(Date.now()),
       status: 'active' as const
     };
-    setServices((prev) => [...prev, newService]);
+    setServices((prev) => {
+      const next = [...prev, newService];
+      broadcastCloudMessage({ type: 'SYNC_SERVICES', services: next });
+      return next;
+    });
   };
 
   const updateService = (id: string, updated: Partial<typeof services[0]>) => {
-    setServices((prev) => prev.map((s) => (s.id === id ? { ...s, ...updated } : s)));
+    setServices((prev) => {
+      const next = prev.map((s) => (s.id === id ? { ...s, ...updated } : s));
+      broadcastCloudMessage({ type: 'SYNC_SERVICES', services: next });
+      return next;
+    });
   };
 
   const deleteService = (id: string) => {
-    setServices((prev) => prev.filter((s) => s.id !== id));
+    setServices((prev) => {
+      const next = prev.filter((s) => s.id !== id);
+      broadcastCloudMessage({ type: 'SYNC_SERVICES', services: next });
+      return next;
+    });
   };
 
   const addClient = (clientData: Omit<Client, 'id' | 'lastVisit' | 'visitCount' | 'totalSpent' | 'avgInterval' | 'loyaltyCount'>) => {
@@ -676,7 +701,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateConfig = (updatedConfig: Partial<AgendaConfig>) => {
-    setConfig((prev) => ({ ...prev, ...updatedConfig }));
+    setConfig((prev) => {
+      const next = { ...prev, ...updatedConfig };
+      broadcastCloudMessage({ type: 'SYNC_CONFIG', config: next });
+      return next;
+    });
+  };
+
+  const syncAllDataToCloud = () => {
+    broadcastCloudMessage({ type: 'SYNC_CONFIG', config });
+    broadcastCloudMessage({ type: 'SYNC_SERVICES', services });
   };
 
   const dismissNotification = () => {
@@ -792,7 +826,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         resetData,
         clientSession,
         saveClientSession,
-        clearClientSession
+        clearClientSession,
+        syncAllDataToCloud
       }}
     >
       {children}
