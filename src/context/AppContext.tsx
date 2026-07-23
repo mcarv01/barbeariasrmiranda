@@ -338,12 +338,83 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => clearInterval(interval);
   }, [activeAppointmentId, appointments, toleranceTimer, nextAppointmentIdForTolerance, config, notifiedAppIds]);
 
-  // Simulate auto backup every 30 seconds
+  // Helper to broadcast changes to Cloud Sync Channel (ntfy.sh)
+  const broadcastCloudMessage = (payload: any) => {
+    try {
+      fetch('https://ntfy.sh/barbearia_sr_miranda_sync_v2', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      }).catch((err) => console.error('Cloud broadcast error:', err));
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  // Real-time Cloud Sync listener (syncs across all devices & browsers)
   useEffect(() => {
-    const backupInterval = setInterval(() => {
-      console.log('Backup automático em nuvem simulada concluído!');
-    }, 30000);
-    return () => clearInterval(backupInterval);
+    const syncChannel = 'barbearia_sr_miranda_sync_v2';
+
+    // 1. Initial catch-up poll for recent bookings
+    fetch(`https://ntfy.sh/${syncChannel}/json?poll=1`)
+      .then((res) => res.text())
+      .then((text) => {
+        if (!text) return;
+        const lines = text.trim().split('\n');
+        lines.forEach((line) => {
+          try {
+            const data = JSON.parse(line);
+            if (data.message) {
+              const payload = JSON.parse(data.message);
+              if (payload.type === 'NEW_APPOINTMENT' && payload.appointment) {
+                setAppointments((prev) => {
+                  if (prev.some((a) => a.id === payload.appointment.id)) return prev;
+                  return [...prev, payload.appointment];
+                });
+              }
+            }
+          } catch (e) {
+            // ignore
+          }
+        });
+      })
+      .catch((err) => console.error('Catchup poll error:', err));
+
+    // 2. Real-time stream via Server-Sent Events (SSE)
+    let eventSource: EventSource | null = null;
+    try {
+      eventSource = new EventSource(`https://ntfy.sh/${syncChannel}/sse`);
+      eventSource.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.message) {
+            const payload = JSON.parse(data.message);
+            if (payload.type === 'NEW_APPOINTMENT' && payload.appointment) {
+              setAppointments((prev) => {
+                if (prev.some((a) => a.id === payload.appointment.id)) return prev;
+                return [...prev, payload.appointment];
+              });
+            } else if (payload.type === 'CANCEL_APPOINTMENT' && payload.id) {
+              setAppointments((prev) =>
+                prev.map((a) => (a.id === payload.id ? { ...a, status: 'cancelado' } : a))
+              );
+            } else if (payload.type === 'UPDATE_APPOINTMENT' && payload.appointment) {
+              setAppointments((prev) =>
+                prev.map((a) => (a.id === payload.appointment.id ? payload.appointment : a))
+              );
+            }
+          }
+        } catch (e) {
+          // ignore
+        }
+      };
+    } catch (err) {
+      console.error('SSE initialization error:', err);
+    }
+
+    return () => {
+      if (eventSource) eventSource.close();
+    };
   }, []);
 
   // Action methods
@@ -444,15 +515,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     setAppointments((prev) => [...prev, newApp]);
+    // Broadcast across all devices via Cloud Realtime Sync
+    broadcastCloudMessage({ type: 'NEW_APPOINTMENT', appointment: newApp });
     return newApp;
   };
 
   const updateAppointment = (id: string, updated: Partial<Appointment>) => {
-    setAppointments((prev) => prev.map((a) => (a.id === id ? { ...a, ...updated } : a)));
+    setAppointments((prev) => {
+      const next = prev.map((a) => (a.id === id ? { ...a, ...updated } : a));
+      const updatedApp = next.find((a) => a.id === id);
+      if (updatedApp) {
+        broadcastCloudMessage({ type: 'UPDATE_APPOINTMENT', appointment: updatedApp });
+      }
+      return next;
+    });
   };
 
   const cancelAppointment = (id: string) => {
     setAppointments((prev) => prev.map((a) => (a.id === id ? { ...a, status: 'cancelado' } : a)));
+    broadcastCloudMessage({ type: 'CANCEL_APPOINTMENT', id });
     // If the cancelled appointment was the tolerance active target, clear it
     if (nextAppointmentIdForTolerance === id) {
       setNextAppointmentIdForTolerance(null);
