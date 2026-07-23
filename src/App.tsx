@@ -60,8 +60,9 @@ const TVPanel: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   return (
     <div className="tv-panel-viewport">
       <div className="tv-header">
-        <h1 className="tv-title">
-          <span>💈</span> Barbearia Sr. Miranda - Painel de Fila
+        <h1 className="tv-title" style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+          <img src="/logo.png" alt="Logo Sr. Miranda" style={{ height: '48px', borderRadius: '8px', objectFit: 'contain' }} />
+          <span>Barbearia Sr. Miranda - Painel de Fila</span>
         </h1>
         <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
           <span className="tv-clock">{time}</span>
@@ -217,8 +218,8 @@ const AppContent: React.FC = () => {
         
         {/* Top Header */}
         <header className="role-switcher-header">
-          <h1 className="brand-title">
-            <Scissors size={20} style={{ color: 'var(--accent-gold)' }} />
+          <h1 className="brand-title" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <img src="/logo.png" alt="Barbearia Sr. Miranda" style={{ height: '36px', width: 'auto', borderRadius: '6px', objectFit: 'contain' }} />
             <span>Barbearia Sr. Miranda</span>
           </h1>
 
@@ -381,7 +382,7 @@ const AppContent: React.FC = () => {
                 }}>
                   <div className="login-card" style={{ width: '100%', maxWidth: '380px' }}>
                     <div className="login-header">
-                      <div className="login-logo">✂️</div>
+                      <img src="/logo.png" alt="Logo Barbearia Sr. Miranda" style={{ width: '80px', height: '80px', objectFit: 'contain', margin: '0 auto 12px', display: 'block' }} />
                       <h2 className="login-title">Área do Barbeiro</h2>
                       <p className="login-subtitle">Acesso exclusivo — Barbearia Sr. Miranda</p>
                     </div>
@@ -462,7 +463,7 @@ const AppContent: React.FC = () => {
               <div className="login-screen">
                 <div className="login-card">
                   <div className="login-header">
-                    <div className="login-logo">✂️</div>
+                    <img src="/logo.png" alt="Logo Barbearia Sr. Miranda" style={{ width: '80px', height: '80px', objectFit: 'contain', margin: '0 auto 12px', display: 'block' }} />
                     <h2 className="login-title">Área do Barbeiro</h2>
                     <p className="login-subtitle">Acesso exclusivo — Barbearia Sr. Miranda</p>
                   </div>

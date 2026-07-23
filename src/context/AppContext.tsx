@@ -63,6 +63,7 @@ interface AppContextType {
   logout: () => void;
   addService: (service: { name: string; category: string; price: number; duration: number; color: string }) => void;
   updateService: (id: string, updated: Partial<{ id: string; name: string; category: string; price: number; duration: number; color: string; status: 'active' | 'inactive' }>) => void;
+  deleteService: (id: string) => void;
   addClient: (client: Omit<Client, 'id' | 'lastVisit' | 'visitCount' | 'totalSpent' | 'avgInterval' | 'loyaltyCount'>) => Client;
   updateClient: (id: string, updated: Partial<Client>) => void;
   addAppointment: (appointment: Omit<Appointment, 'id' | 'status' | 'clientStatus'> & { clientPhone: string }) => Appointment;
@@ -396,6 +397,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setServices((prev) => prev.map((s) => (s.id === id ? { ...s, ...updated } : s)));
   };
 
+  const deleteService = (id: string) => {
+    setServices((prev) => prev.filter((s) => s.id !== id));
+  };
+
   const addClient = (clientData: Omit<Client, 'id' | 'lastVisit' | 'visitCount' | 'totalSpent' | 'avgInterval' | 'loyaltyCount'>) => {
     const newClient: Client = {
       ...clientData,
@@ -687,6 +692,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         logout,
         addService,
         updateService,
+        deleteService,
         addClient,
         updateClient,
         addAppointment,

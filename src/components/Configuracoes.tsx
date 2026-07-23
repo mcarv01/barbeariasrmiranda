@@ -8,6 +8,7 @@ export const Configuracoes: React.FC = () => {
     config,
     addService,
     updateService,
+    deleteService,
     updateConfig,
     resetData
   } = useApp();
@@ -166,6 +167,12 @@ export const Configuracoes: React.FC = () => {
 
   const toggleServiceStatus = (id: string, currentStatus: 'active' | 'inactive') => {
     updateService(id, { status: currentStatus === 'active' ? 'inactive' : 'active' });
+  };
+
+  const handleDeleteService = (id: string, name: string) => {
+    if (confirm(`Tem certeza que deseja excluir permanentemente o serviço "${name}"?`)) {
+      deleteService(id);
+    }
   };
 
   return (
@@ -398,21 +405,31 @@ export const Configuracoes: React.FC = () => {
                 </div>
               </div>
               
-              <button 
-                className="btn-secondary" 
-                style={{ padding: '4px 8px', fontSize: '10px', borderColor: s.status === 'active' ? 'var(--border-color)' : 'var(--accent-gold)' }}
-                onClick={() => toggleServiceStatus(s.id, s.status)}
-              >
-                {s.status === 'active' ? 'Pausar' : 'Ativar'}
-              </button>
-              <button
-                className="btn-secondary"
-                style={{ padding: '4px 8px', fontSize: '10px', borderColor: 'rgba(212,175,55,0.4)', color: 'var(--accent-gold)' }}
-                onClick={() => openEditModal(s)}
-                title="Editar serviço"
-              >
-                <Pencil size={12} />
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <button 
+                  className="btn-secondary" 
+                  style={{ padding: '4px 8px', fontSize: '10px', borderColor: s.status === 'active' ? 'var(--border-color)' : 'var(--accent-gold)' }}
+                  onClick={() => toggleServiceStatus(s.id, s.status)}
+                >
+                  {s.status === 'active' ? 'Pausar' : 'Ativar'}
+                </button>
+                <button
+                  className="btn-secondary"
+                  style={{ padding: '4px 8px', fontSize: '10px', borderColor: 'rgba(212,175,55,0.4)', color: 'var(--accent-gold)' }}
+                  onClick={() => openEditModal(s)}
+                  title="Editar serviço"
+                >
+                  <Pencil size={12} />
+                </button>
+                <button
+                  className="btn-secondary"
+                  style={{ padding: '4px 8px', fontSize: '10px', borderColor: 'rgba(239,68,68,0.4)', color: '#ef4444' }}
+                  onClick={() => handleDeleteService(s.id, s.name)}
+                  title="Deletar serviço"
+                >
+                  <Trash2 size={12} />
+                </button>
+              </div>
             </div>
           ))}
         </div>

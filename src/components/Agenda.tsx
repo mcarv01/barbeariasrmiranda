@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { getAvailableSlots, parseTimeToMinutes } from '../utils/scheduleAlgorithm';
-import { Calendar, Plus, CheckSquare, X } from 'lucide-react';
+import { getAvailableSlots, parseTimeToMinutes, formatMinutesToTime } from '../utils/scheduleAlgorithm';
+import { Calendar, Plus, CheckSquare, X, Lock, Unlock } from 'lucide-react';
 
 export const Agenda: React.FC = () => {
   const {
@@ -11,7 +11,8 @@ export const Agenda: React.FC = () => {
     config,
     addAppointment,
     cancelAppointment,
-    markNoShow
+    markNoShow,
+    updateConfig
   } = useApp();
 
   const [selectedDate, setSelectedDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
@@ -54,6 +55,39 @@ export const Agenda: React.FC = () => {
     config,
     new Date()
   );
+
+  // Calculation for full day slots grid control
+  const openMins = parseTimeToMinutes(config.openingTime);
+  const closeMins = parseTimeToMinutes(config.closingTime);
+  const lunchStartMins = parseTimeToMinutes(config.lunchStart);
+  const lunchEndMins = parseTimeToMinutes(config.lunchEnd);
+
+  const daySlotTimes: string[] = [];
+  for (let m = openMins; m < closeMins; m += 30) {
+    daySlotTimes.push(formatMinutesToTime(m));
+  }
+
+  const handleToggleSlotBlock = (timeStr: string) => {
+    const m = parseTimeToMinutes(timeStr);
+    const endTimeStr = formatMinutesToTime(m + 30);
+
+    const existingIndex = (config.blockedPeriods || []).findIndex(
+      (bp) => bp.start === timeStr && (!bp.date || bp.date === selectedDate)
+    );
+
+    if (existingIndex >= 0) {
+      const updated = config.blockedPeriods.filter((_, idx) => idx !== existingIndex);
+      updateConfig({ blockedPeriods: updated });
+    } else {
+      const newBlock = {
+        date: selectedDate,
+        start: timeStr,
+        end: endTimeStr,
+        label: 'Bloqueado pelo barbeiro'
+      };
+      updateConfig({ blockedPeriods: [...(config.blockedPeriods || []), newBlock] });
+    }
+  };
 
   const handleOpenBooking = () => {
     setClientName('');
@@ -209,6 +243,144 @@ export const Agenda: React.FC = () => {
               );
             })
           )}
+        </div>
+      </div>
+
+      {/* Grade e Controle de Horários do Dia */}
+      <div className="card-premium">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+          <div>
+            <h3 className="quick-actions-title" style={{ margin: 0 }}>
+              Controle de Horários da Grade ({selectedDate.split('-').reverse().join('/')})
+            </h3>
+            <p style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+              Clique em qualquer horário para <strong>Eliminar/Bloquear</strong> ou <strong>Liberar</strong> para os clientes.
+            </p>
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(135px, 1fr))', gap: '8px', marginTop: '12px' }}>
+          {daySlotTimes.map((slotTime) => {
+            const slotMins = parseTimeToMinutes(slotTime);
+            const isLunch = slotMins >= lunchStartMins && slotMins < lunchEndMins;
+
+            // Check if booked by client
+            const activeBooking = dayAppointments.find((a) => {
+              const start = parseTimeToMinutes(a.startTime);
+              const end = start + a.duration;
+              return slotMins >= start && slotMins < end;
+            });
+
+            // Check if blocked in blockedPeriods
+            const isBlocked = (config.blockedPeriods || []).some((bp) => {
+              if (bp.date && bp.date !== selectedDate) return false;
+              const bStart = parseTimeToMinutes(bp.start);
+              const bEnd = parseTimeToMinutes(bp.end);
+              return slotMins >= bStart && slotMins < bEnd;
+            });
+
+            if (activeBooking) {
+              return (
+                <div
+                  key={slotTime}
+                  style={{
+                    padding: '8px 10px',
+                    borderRadius: '8px',
+                    background: 'rgba(155, 89, 182, 0.15)',
+                    border: '1px solid rgba(155, 89, 182, 0.3)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '2px'
+                  }}
+                >
+                  <div style={{ fontSize: '12px', fontWeight: '700', color: '#9B59B6' }}>
+                    ⏰ {slotTime}
+                  </div>
+                  <div style={{ fontSize: '10px', color: 'white', fontWeight: '600', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                    👤 {activeBooking.clientName}
+                  </div>
+                  <span style={{ fontSize: '9px', color: 'var(--text-muted)' }}>Agendado</span>
+                </div>
+              );
+            }
+
+            if (isLunch) {
+              return (
+                <div
+                  key={slotTime}
+                  style={{
+                    padding: '8px 10px',
+                    borderRadius: '8px',
+                    background: 'rgba(255, 255, 255, 0.04)',
+                    border: '1px dashed var(--border-color)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '2px',
+                    opacity: 0.6
+                  }}
+                >
+                  <div style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-muted)' }}>
+                    ⏰ {slotTime}
+                  </div>
+                  <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>🍱 Almoço</span>
+                </div>
+              );
+            }
+
+            return (
+              <div
+                key={slotTime}
+                style={{
+                  padding: '8px 10px',
+                  borderRadius: '8px',
+                  background: isBlocked ? 'rgba(239, 68, 68, 0.12)' : 'var(--bg-tertiary)',
+                  border: isBlocked ? '1px solid rgba(239, 68, 68, 0.4)' : '1px solid var(--border-color)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '6px',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '13px', fontWeight: '700', color: isBlocked ? '#ef4444' : 'white', fontFamily: 'monospace' }}>
+                    ⏰ {slotTime}
+                  </span>
+                  <span style={{ fontSize: '10px', color: isBlocked ? '#ef4444' : '#10b981', fontWeight: '700' }}>
+                    {isBlocked ? '🔴 Bloqueado' : '🟢 Livre'}
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => handleToggleSlotBlock(slotTime)}
+                  style={{
+                    padding: '4px 8px',
+                    borderRadius: '6px',
+                    fontSize: '10px',
+                    fontWeight: '700',
+                    cursor: 'pointer',
+                    background: isBlocked ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                    border: isBlocked ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid rgba(239, 68, 68, 0.4)',
+                    color: isBlocked ? '#10b981' : '#ef4444',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '4px'
+                  }}
+                >
+                  {isBlocked ? (
+                    <>
+                      <Unlock size={11} /> Liberar Horário
+                    </>
+                  ) : (
+                    <>
+                      <Lock size={11} /> Eliminar / Bloquear
+                    </>
+                  )}
+                </button>
+              </div>
+            );
+          })}
         </div>
       </div>
 
