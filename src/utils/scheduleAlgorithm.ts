@@ -36,11 +36,16 @@ export interface AgendaConfig {
   bufferTime: number; // minutes between clients
   minLeadTime: number; // hours in advance to book
   maxAdvanceDays: number; // max days in advance to book
-  blockedPeriods: { start: string; end: string; label: string }[];
+  blockedPeriods: { date?: string; start: string; end: string; label: string }[];
   vacations: string[]; // YYYY-MM-DD
   holidays: string[]; // YYYY-MM-DD
   toleranceTime: number; // minutes of delay tolerance
   notificationTime: number; // minutes before to notify next client
+  shopName?: string;
+  whatsapp?: string;
+  instagram?: string;
+  address?: string;
+  pixKey?: string;
 }
 
 /**
@@ -102,6 +107,9 @@ export function getAvailableSlots(
 
   // Add custom blocked periods
   config.blockedPeriods.forEach((period) => {
+    if (period.date && period.date !== dateStr) {
+      return;
+    }
     blockedIntervals.push({
       start: parseTimeToMinutes(period.start),
       end: parseTimeToMinutes(period.end),

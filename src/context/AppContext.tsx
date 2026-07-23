@@ -38,6 +38,7 @@ export interface Promotion {
   maxSlots: number;
   bannerImage?: string; // base64 string
   active: boolean;
+  onlyPix?: boolean;
 }
 
 interface AppContextType {
@@ -101,7 +102,12 @@ const defaultConfig: AgendaConfig = {
   vacations: [],
   holidays: ['2026-12-25', '2026-01-01'],
   toleranceTime: 10, // 10 minutes
-  notificationTime: 10 // 10 minutes before ending
+  notificationTime: 10, // 10 minutes before ending
+  shopName: 'Barbearia Sr. Miranda',
+  whatsapp: '11988887777',
+  instagram: '@barbeariasrmiranda',
+  address: 'Rua Augusta, 1234 - Consolação, São Paulo',
+  pixKey: '11988887777'
 };
 // Barber access credentials (in production these would be server-validated)
 const BARBER_EMAIL = 'miranda@barbeariasrmiranda.com.br';

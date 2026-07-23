@@ -12,6 +12,7 @@ export const Promocao: React.FC = () => {
   const [maxSlots, setMaxSlots] = useState('8');
   const [bannerImage, setBannerImage] = useState<string | undefined>(undefined);
   const [active, setActive] = useState(false);
+  const [onlyPix, setOnlyPix] = useState(false);
 
   // Load existing promotion into form
   useEffect(() => {
@@ -23,6 +24,7 @@ export const Promocao: React.FC = () => {
       setMaxSlots(String(promotion.maxSlots));
       setBannerImage(promotion.bannerImage);
       setActive(promotion.active);
+      setOnlyPix(promotion.onlyPix || false);
     } else {
       // Defaults
       setTitle('Segunda do Homem Moderno');
@@ -34,6 +36,7 @@ export const Promocao: React.FC = () => {
       setMaxSlots('8');
       setBannerImage(undefined);
       setActive(false);
+      setOnlyPix(false);
     }
   }, [promotion, services]);
 
@@ -63,7 +66,8 @@ export const Promocao: React.FC = () => {
       serviceIds,
       maxSlots: Number(maxSlots),
       bannerImage,
-      active
+      active,
+      onlyPix
     });
 
     alert('Configurações de promoção salvas com sucesso!');
@@ -119,6 +123,11 @@ export const Promocao: React.FC = () => {
                   Preço: <strong style={{ color: 'var(--accent-gold)' }}>R$ {promotion.price.toFixed(2)}</strong> (Combo de Serviços: {promoServiceNames.join(' + ') || 'Nenhum'})
                 </span>
               </p>
+              {promotion.onlyPix && (
+                <p style={{ fontSize: '12px', color: '#2ECC71', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px' }}>
+                  ⚡ Exige pagamento antecipado via PIX
+                </p>
+              )}
             </div>
             
             <div style={{ textAlign: 'right' }}>
@@ -291,6 +300,39 @@ export const Promocao: React.FC = () => {
               )}
             </div>
           </div>
+
+          {/* Pix Only toggle switch */}
+          <label style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', padding: '6px 0', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '12px', marginBottom: '6px' }}>
+            <div
+              onClick={() => setOnlyPix(!onlyPix)}
+              style={{
+                width: '44px',
+                height: '24px',
+                borderRadius: '12px',
+                background: onlyPix ? 'var(--accent-gold-gradient)' : 'var(--bg-tertiary)',
+                border: '1px solid var(--border-color)',
+                position: 'relative',
+                transition: 'background-color 0.2s'
+              }}
+            >
+              <div 
+                style={{
+                  width: '18px',
+                  height: '18px',
+                  borderRadius: '50%',
+                  background: onlyPix ? 'black' : 'var(--text-muted)',
+                  position: 'absolute',
+                  top: '2px',
+                  left: onlyPix ? '22px' : '2px',
+                  transition: 'left 0.2s, background-color 0.2s'
+                }}
+              />
+            </div>
+            <div>
+              <span style={{ fontSize: '14px', fontWeight: '700', color: 'white' }}>Exigir pagamento antecipado via PIX</span>
+              <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>Quando marcada, o cliente é obrigado a pagar via PIX para reservar o horário.</p>
+            </div>
+          </label>
 
           {/* Active toggle switch */}
           <label style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', padding: '6px 0' }}>

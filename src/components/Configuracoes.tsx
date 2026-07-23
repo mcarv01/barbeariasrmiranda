@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { Plus, Save, Info, Pencil, X } from 'lucide-react';
+import { Plus, Save, Info, Pencil, X, Trash2 } from 'lucide-react';
 
 export const Configuracoes: React.FC = () => {
   const {
@@ -13,11 +13,20 @@ export const Configuracoes: React.FC = () => {
   } = useApp();
 
   // Shop details form
-  const [shopName, setShopName] = useState('Barbearia Sr. Miranda');
-  const [whatsapp, setWhatsapp] = useState('11988887777');
-  const [instagram, setInstagram] = useState('@barbeariasrmiranda');
-  const [address, setAddress] = useState('Rua Augusta, 1234 - Consolação, São Paulo');
-  const [pixKey, setPixKey] = useState('11988887777');
+  const [shopName, setShopName] = useState(config.shopName || 'Barbearia Sr. Miranda');
+  const [whatsapp, setWhatsapp] = useState(config.whatsapp || '11988887777');
+  const [instagram, setInstagram] = useState(config.instagram || '@barbeariasrmiranda');
+  const [address, setAddress] = useState(config.address || 'Rua Augusta, 1234 - Consolação, São Paulo');
+  const [pixKey, setPixKey] = useState(config.pixKey || '11988887777');
+
+  // Sync form details when config is updated or reset
+  useEffect(() => {
+    setShopName(config.shopName || 'Barbearia Sr. Miranda');
+    setWhatsapp(config.whatsapp || '11988887777');
+    setInstagram(config.instagram || '@barbeariasrmiranda');
+    setAddress(config.address || 'Rua Augusta, 1234 - Consolação, São Paulo');
+    setPixKey(config.pixKey || '11988887777');
+  }, [config.shopName, config.whatsapp, config.instagram, config.address, config.pixKey]);
 
   // Agenda settings form
   const [openingTime, setOpeningTime] = useState(config.openingTime);
@@ -28,6 +37,13 @@ export const Configuracoes: React.FC = () => {
   const [toleranceTime, setToleranceTime] = useState(String(config.toleranceTime));
   const [notificationTime, setNotificationTime] = useState(String(config.notificationTime));
   const [minLeadTime, setMinLeadTime] = useState(String(config.minLeadTime));
+
+  // Agenda blocks form state
+  const [blockLabel, setBlockLabel] = useState('');
+  const [blockStart, setBlockStart] = useState('');
+  const [blockEnd, setBlockEnd] = useState('');
+  const [blockType, setBlockType] = useState<'recurrent' | 'date'>('recurrent');
+  const [blockDate, setBlockDate] = useState(() => new Date().toISOString().split('T')[0]);
 
   // Service creation form
   const [newServiceName, setNewServiceName] = useState('');
@@ -69,7 +85,50 @@ export const Configuracoes: React.FC = () => {
 
   const handleSaveShopDetails = (e: React.FormEvent) => {
     e.preventDefault();
+    updateConfig({
+      shopName,
+      whatsapp,
+      instagram,
+      address,
+      pixKey
+    });
     alert('Informações da barbearia salvas com sucesso!');
+  };
+
+  const handleAddBlockedPeriod = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!blockLabel || !blockStart || !blockEnd) {
+      alert('Preencha todos os campos obrigatórios para o bloqueio.');
+      return;
+    }
+    if (blockStart >= blockEnd) {
+      alert('O horário de início deve ser anterior ao horário de término.');
+      return;
+    }
+
+    const newBlock = {
+      label: blockLabel,
+      start: blockStart,
+      end: blockEnd,
+      ...(blockType === 'date' ? { date: blockDate } : {})
+    };
+
+    updateConfig({
+      blockedPeriods: [...(config.blockedPeriods || []), newBlock]
+    });
+
+    setBlockLabel('');
+    setBlockStart('');
+    setBlockEnd('');
+    alert('Bloqueio de horário adicionado com sucesso!');
+  };
+
+  const handleRemoveBlockedPeriod = (indexToRemove: number) => {
+    const updated = (config.blockedPeriods || []).filter((_, idx) => idx !== indexToRemove);
+    updateConfig({
+      blockedPeriods: updated
+    });
+    alert('Bloqueio removido com sucesso!');
   };
 
   const handleSaveAgendaConfig = (e: React.FormEvent) => {
@@ -202,6 +261,107 @@ export const Configuracoes: React.FC = () => {
             <Save size={16} /> Aplicar Configurações
           </button>
         </form>
+      </div>
+
+      {/* Bloqueios da Agenda (Horários Indisponíveis) */}
+      <div className="card-premium">
+        <h3 className="quick-actions-title">Bloqueios de Horários (Indisponibilidade)</h3>
+        <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '14px' }}>
+          Adicione horários em que a barbearia estará fechada ou você estará ausente. Clientes não poderão agendar nesses intervalos.
+        </p>
+
+        {/* Add block form */}
+        <form onSubmit={handleAddBlockedPeriod} style={{ display: 'flex', flexDirection: 'column', gap: '12px', background: 'rgba(255, 255, 255, 0.02)', padding: '14px', borderRadius: '8px', border: '1px solid var(--border-color)', marginBottom: '16px' }}>
+          <h4 style={{ fontSize: '13px', fontWeight: '700', color: 'var(--accent-gold)' }}>Novo Bloqueio temporário/recorrente</h4>
+          
+          <div className="input-group">
+            <span className="input-label">Motivo do Bloqueio *</span>
+            <input type="text" className="text-input" placeholder="Ex: Saída rápida, Compromisso, Café da tarde" value={blockLabel} onChange={(e) => setBlockLabel(e.target.value)} required />
+          </div>
+
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <div className="input-group" style={{ flex: 1 }}>
+              <span className="input-label">Início *</span>
+              <input type="time" className="text-input" value={blockStart} onChange={(e) => setBlockStart(e.target.value)} required />
+            </div>
+            <div className="input-group" style={{ flex: 1 }}>
+              <span className="input-label">Fim *</span>
+              <input type="time" className="text-input" value={blockEnd} onChange={(e) => setBlockEnd(e.target.value)} required />
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <div className="input-group" style={{ flex: 1 }}>
+              <span className="input-label">Tipo de Bloqueio</span>
+              <select className="text-input" value={blockType} onChange={(e) => setBlockType(e.target.value as 'recurrent' | 'date')}>
+                <option value="recurrent">Todo dia (Recorrente)</option>
+                <option value="date">Data Específica</option>
+              </select>
+            </div>
+            {blockType === 'date' && (
+              <div className="input-group" style={{ flex: 1 }}>
+                <span className="input-label">Data do Bloqueio *</span>
+                <input type="date" className="text-input" min={new Date().toISOString().split('T')[0]} value={blockDate} onChange={(e) => setBlockDate(e.target.value)} required />
+              </div>
+            )}
+          </div>
+
+          <button type="submit" className="btn-primary" style={{ alignSelf: 'flex-start', padding: '8px 14px', fontSize: '12px', marginTop: '6px' }}>
+            <Plus size={14} /> Adicionar Bloqueio
+          </button>
+        </form>
+
+        {/* Blocks list */}
+        <h4 style={{ fontSize: '13px', fontWeight: '700', marginBottom: '8px' }}>Bloqueios Ativos na Agenda</h4>
+        {(!config.blockedPeriods || config.blockedPeriods.length === 0) ? (
+          <div style={{ padding: '12px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px', border: '1px dashed var(--border-color)', borderRadius: '6px' }}>
+            Nenhum bloqueio cadastrado.
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {config.blockedPeriods.map((period, idx) => (
+              <div 
+                key={idx} 
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  padding: '10px 12px',
+                  background: 'var(--bg-tertiary)',
+                  borderRadius: '6px',
+                  border: '1px solid var(--border-color)'
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: '13px', fontWeight: '700', color: 'white' }}>{period.label}</div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px', display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <span>⏰ {period.start} - {period.end}</span>
+                    <span style={{
+                      padding: '2px 6px',
+                      borderRadius: '4px',
+                      fontSize: '9px',
+                      fontWeight: '700',
+                      background: period.date ? 'var(--accent-gold-glow)' : 'rgba(255, 255, 255, 0.05)',
+                      color: period.date ? 'var(--accent-gold)' : 'var(--text-secondary)',
+                      border: period.date ? '1px solid rgba(212,175,55,0.2)' : '1px solid rgba(255,255,255,0.05)'
+                    }}>
+                      {period.date ? `Apenas em ${period.date.split('-').reverse().join('/')}` : 'Todos os dias'}
+                    </span>
+                  </div>
+                </div>
+                
+                <button 
+                  type="button"
+                  className="btn-secondary" 
+                  style={{ padding: '6px', borderColor: 'var(--color-sem-resposta)', color: 'var(--color-sem-resposta)' }}
+                  onClick={() => handleRemoveBlockedPeriod(idx)}
+                >
+                  <Trash2 size={12} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Services Catalogue Manager */}

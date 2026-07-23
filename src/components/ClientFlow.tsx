@@ -92,6 +92,13 @@ export const ClientFlow: React.FC = () => {
     ? promotion.price
     : selectedServices.reduce((acc, s) => acc + s.price, 0);
 
+  // ── Enforce Pix payment for promotions requiring it ──────────────────────
+  useEffect(() => {
+    if (isPromoApplicable && promotion?.onlyPix) {
+      setPaymentMethodSelection('pix');
+    }
+  }, [isPromoApplicable, promotion]);
+
   // Today's quick slots (minimum 30-min window, for home preview)
   const todaySlots = getAvailableSlots(todayStr, 30, appointments, config, new Date());
 
@@ -183,17 +190,27 @@ export const ClientFlow: React.FC = () => {
     const endH = Math.floor(totalMins / 60);
     const endM = totalMins % 60;
     const endStr = `${dateClean}T${String(endH).padStart(2, '0')}${String(endM).padStart(2, '0')}00`;
-    const title = encodeURIComponent('Corte na Barbearia Sr. Miranda');
+    const title = encodeURIComponent(`Corte na ${config.shopName || 'Barbearia Sr. Miranda'}`);
     const details = encodeURIComponent(
       `Serviços:\n${app.services.map((s) => `- ${s.name} (R$ ${s.price})`).join('\n')}\n\nTempo: ${app.duration} min`
     );
-    const location = encodeURIComponent('Barbearia Sr. Miranda');
+    const location = encodeURIComponent(config.address || 'Barbearia Sr. Miranda');
     return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${startStr}/${endStr}&details=${details}&location=${location}`;
   };
 
   const getPixCode = () => {
     const amountFormatted = totalValue.toFixed(2);
-    return `00020101021126580014br.gov.bcb.pix0111119888877775204000053039865405${amountFormatted}5802BR5920Barbearia Sr Miranda6009Sao Paulo62070503***6304`;
+    const key = config.pixKey || '11988887777';
+    const keyLen = String(key.length).padStart(2, '0');
+    const merchantInfo = `0014br.gov.bcb.pix01${keyLen}${key}`;
+    const merchantInfoLen = String(merchantInfo.length).padStart(2, '0');
+    const shop = (config.shopName || 'Barbearia Sr Miranda')
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-zA-Z0-9 ]/g, "")
+      .substring(0, 25);
+    const shopLen = String(shop.length).padStart(2, '0');
+    return `00020101021126${merchantInfoLen}${merchantInfo}5204000053039865405${amountFormatted}5802BR59${shopLen}${shop}6009Sao Paulo62070503***6304`;
   };
 
   const copyPixCode = () => {
@@ -719,26 +736,37 @@ export const ClientFlow: React.FC = () => {
 
           <div className="input-group">
             <span className="input-label">Como deseja pagar?</span>
-            <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
-              <button
-                type="button"
-                className={`btn-secondary ${paymentMethodSelection === 'pix' ? 'active-client' : ''}`}
-                style={{ flex: 1, padding: '12px 6px', fontSize: '12px', borderColor: paymentMethodSelection === 'pix' ? 'var(--accent-gold)' : 'var(--border-color)', display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'center' }}
-                onClick={() => setPaymentMethodSelection('pix')}
-              >
-                <span>⚡ PIX</span>
-                <span style={{ fontSize: '9px', fontWeight: 'normal', color: 'var(--text-secondary)' }}>Pagar Sinal Agora</span>
-              </button>
-              <button
-                type="button"
-                className={`btn-secondary ${paymentMethodSelection === 'local' ? 'active-client' : ''}`}
-                style={{ flex: 1, padding: '12px 6px', fontSize: '12px', borderColor: paymentMethodSelection === 'local' ? 'var(--accent-gold)' : 'var(--border-color)', display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'center' }}
-                onClick={() => setPaymentMethodSelection('local')}
-              >
-                <span>🏪 Na Barbearia</span>
-                <span style={{ fontSize: '9px', fontWeight: 'normal', color: 'var(--text-secondary)' }}>Pagar Presencialmente</span>
-              </button>
-            </div>
+            {isPromoApplicable && promotion?.onlyPix ? (
+              <div style={{ background: 'rgba(46, 204, 113, 0.08)', border: '1px solid rgba(46, 204, 113, 0.2)', borderRadius: '10px', padding: '12px 14px', marginTop: '6px' }}>
+                <p style={{ fontSize: '13px', fontWeight: '700', color: '#2ECC71', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  ⚡ Promoção Exclusiva via PIX
+                </p>
+                <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px', lineHeight: '1.4' }}>
+                  Esta oferta possui um preço especial válido apenas para pagamento antecipado no PIX. Para garantir seu horário, realize o PIX abaixo.
+                </p>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
+                <button
+                  type="button"
+                  className={`btn-secondary ${paymentMethodSelection === 'pix' ? 'active-client' : ''}`}
+                  style={{ flex: 1, padding: '12px 6px', fontSize: '12px', borderColor: paymentMethodSelection === 'pix' ? 'var(--accent-gold)' : 'var(--border-color)', display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'center' }}
+                  onClick={() => setPaymentMethodSelection('pix')}
+                >
+                  <span>⚡ PIX</span>
+                  <span style={{ fontSize: '9px', fontWeight: 'normal', color: 'var(--text-secondary)' }}>Pagar Sinal Agora</span>
+                </button>
+                <button
+                  type="button"
+                  className={`btn-secondary ${paymentMethodSelection === 'local' ? 'active-client' : ''}`}
+                  style={{ flex: 1, padding: '12px 6px', fontSize: '12px', borderColor: paymentMethodSelection === 'local' ? 'var(--accent-gold)' : 'var(--border-color)', display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'center' }}
+                  onClick={() => setPaymentMethodSelection('local')}
+                >
+                  <span>🏪 Na Barbearia</span>
+                  <span style={{ fontSize: '9px', fontWeight: 'normal', color: 'var(--text-secondary)' }}>Pagar Presencialmente</span>
+                </button>
+              </div>
+            )}
           </div>
 
           {paymentMethodSelection === 'pix' ? (
@@ -874,11 +902,16 @@ export const ClientFlow: React.FC = () => {
             <h3 className="quick-actions-title" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <MapPin size={16} /> Como Chegar
             </h3>
-            <p style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-              Barbearia Sr. Miranda
+            <p style={{ fontSize: '13px', fontWeight: '700', color: 'white' }}>
+              {config.shopName || 'Barbearia Sr. Miranda'}
             </p>
-            <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
-              Instagram: @barbeariasrmiranda
+            {config.address && (
+              <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                📍 {config.address}
+              </p>
+            )}
+            <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '6px' }}>
+              Instagram: {config.instagram || '@barbeariasrmiranda'}
             </p>
           </div>
 
