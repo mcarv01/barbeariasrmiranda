@@ -10,6 +10,13 @@ export function formatMinutesToTime(minutes: number): string {
   return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
 }
 
+export function getLocalDateStr(d: Date = new Date()): string {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 export interface Appointment {
   id: string;
   clientName: string;
@@ -123,7 +130,7 @@ export function getAvailableSlots(
   let searchStartMin = openingMin;
   
   // If target date is today, we cannot book in the past, and must respect the minimum lead time (minLeadTime in hours)
-  const todayStr = currentDateTime.toISOString().split('T')[0];
+  const todayStr = getLocalDateStr(currentDateTime);
   if (dateStr === todayStr) {
     const currentHour = currentDateTime.getHours();
     const currentMin = currentDateTime.getMinutes();

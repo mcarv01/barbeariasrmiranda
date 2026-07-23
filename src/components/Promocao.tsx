@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
+import { getLocalDateStr } from '../utils/scheduleAlgorithm';
 import { Save, Upload, Trash2, Tag, Calendar, Users, Percent } from 'lucide-react';
 
 export const Promocao: React.FC = () => {
@@ -30,7 +31,7 @@ export const Promocao: React.FC = () => {
       setTitle('Segunda do Homem Moderno');
       const tomorrow = new Date();
       tomorrow.setDate(tomorrow.getDate() + 1);
-      setDate(tomorrow.toISOString().split('T')[0]);
+      setDate(getLocalDateStr(tomorrow));
       setPrice('30');
       setServiceIds([]);
       setMaxSlots('8');

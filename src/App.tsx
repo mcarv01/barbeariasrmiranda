@@ -22,6 +22,7 @@ import {
   X,
   Tag
 } from 'lucide-react';
+import { getLocalDateStr } from './utils/scheduleAlgorithm';
 import './index.css';
 import './App.css';
 
@@ -37,7 +38,7 @@ const TVPanel: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     return () => clearInterval(timer);
   }, []);
 
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = getLocalDateStr();
   
   // Sort today's appointments by time
   const todayApps = appointments

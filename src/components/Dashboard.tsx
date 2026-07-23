@@ -13,7 +13,7 @@ import {
   Plus,
   Users
 } from 'lucide-react';
-import { parseTimeToMinutes, getAvailableSlots } from '../utils/scheduleAlgorithm';
+import { parseTimeToMinutes, getAvailableSlots, getLocalDateStr } from '../utils/scheduleAlgorithm';
 
 export const Dashboard: React.FC = () => {
   const {
@@ -35,7 +35,7 @@ export const Dashboard: React.FC = () => {
   const [checkoutModalOpen, setCheckoutModalOpen] = useState(false);
   const [selectedPayment, setSelectedPayment] = useState<'pix' | 'cartao' | 'dinheiro'>('pix');
 
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = getLocalDateStr();
 
   // Helper: Filter today's appointments
   const todayApps = appointments

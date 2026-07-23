@@ -89,8 +89,9 @@ export const Clientes: React.FC = () => {
             {absentClients.map((client) => {
               const days = getDaysSinceLastVisit(client.lastVisit);
               const daysLabel = days === 999 ? 'Sem visitas registradas' : `${days} dias atrás`;
-              const msg = `Fala ${client.name}! Faz um tempinho do seu último corte degradê conosco na Barbearia Sr. Miranda. Que tal garantir seu horário para essa semana? Agende direto pelo nosso aplicativo: http://localhost:5174/`;
-              const waUrl = `https://wa.me/${client.phone}?text=${encodeURIComponent(msg)}`;
+              const appUrl = typeof window !== 'undefined' ? window.location.origin : '';
+              const msg = `Fala ${client.name}! Faz um tempinho do seu último corte conosco na Barbearia Sr. Miranda. Que tal garantir seu horário para essa semana? Agende direto pelo aplicativo: ${appUrl}`;
+              const waUrl = `https://wa.me/${client.phone.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`;
 
               return (
                 <div 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { getAvailableSlots } from '../utils/scheduleAlgorithm';
+import { getAvailableSlots, getLocalDateStr } from '../utils/scheduleAlgorithm';
 import { Check, MapPin, ArrowRight, Clipboard, Calendar, Clock, User, X, ChevronRight, Tag } from 'lucide-react';
 
 export const ClientFlow: React.FC = () => {
@@ -18,10 +18,12 @@ export const ClientFlow: React.FC = () => {
     isClosedEmergency
   } = useApp();
 
+  const todayStr = getLocalDateStr();
+
   // step 0 = home/quick view, 1 = services, 2 = date+time, 3 = client info, 3.5 = payment, 4 = check-in
   const [step, setStep] = useState<0 | 1 | 2 | 3 | 3.5 | 4>(0);
   const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>([]);
-  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState(() => getLocalDateStr());
   const [selectedTime, setSelectedTime] = useState('');
   const [clientName, setClientName] = useState('');
   const [clientPhone, setClientPhone] = useState('');
@@ -41,8 +43,6 @@ export const ClientFlow: React.FC = () => {
 
   // Popup de promoção
   const [showPromoPopup, setShowPromoPopup] = useState(false);
-
-  const todayStr = new Date().toISOString().split('T')[0];
 
   // ── Promotion Popup Check ──────────────────────────────────────────────────
   useEffect(() => {
@@ -140,8 +140,10 @@ export const ClientFlow: React.FC = () => {
 
   const handleFindBooking = () => {
     if (!searchPhone) return;
+    const cleanDigits = (p: string) => p.replace(/\D/g, '');
+    const targetDigits = cleanDigits(searchPhone);
     const app = appointments.find(
-      (a) => a.clientPhone === searchPhone && a.date === todayStr && a.status === 'pendente'
+      (a) => cleanDigits(a.clientPhone) === targetDigits && a.date === todayStr && a.status === 'pendente'
     );
     if (app) {
       setActiveClientAppId(app.id);

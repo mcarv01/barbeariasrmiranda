@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import type { Appointment, AgendaConfig } from '../utils/scheduleAlgorithm';
-import { parseTimeToMinutes } from '../utils/scheduleAlgorithm';
+import { parseTimeToMinutes, getLocalDateStr } from '../utils/scheduleAlgorithm';
 
 export interface Client {
   id: string;
@@ -136,7 +136,7 @@ const defaultTransactions = (): Transaction[] => [];
 const defaultAppointments = (_todayStr: string): Appointment[] => [];
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const getTodayStr = () => new Date().toISOString().split('T')[0];
+  const getTodayStr = () => getLocalDateStr();
   const todayStr = getTodayStr();
 
   // State initialization with localStorage
@@ -524,8 +524,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       clientStatus: 'sem_resposta'
     };
 
-    // Update customer lists if client exists, otherwise create new client
-    const existingClient = clients.find((c) => c.phone === appData.clientPhone);
+    const cleanDigits = (p: string) => p.replace(/\D/g, '');
+    const existingClient = clients.find((c) => cleanDigits(c.phone) === cleanDigits(appData.clientPhone) && cleanDigits(c.phone).length > 0);
     if (!existingClient) {
       addClient({
         name: appData.clientName,

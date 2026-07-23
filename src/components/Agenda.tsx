@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { getAvailableSlots, parseTimeToMinutes, formatMinutesToTime } from '../utils/scheduleAlgorithm';
+import { getAvailableSlots, parseTimeToMinutes, formatMinutesToTime, getLocalDateStr } from '../utils/scheduleAlgorithm';
 import { Calendar, Plus, CheckSquare, X, Lock, Unlock } from 'lucide-react';
 
 export const Agenda: React.FC = () => {
@@ -15,14 +15,14 @@ export const Agenda: React.FC = () => {
     updateConfig
   } = useApp();
 
-  const [selectedDate, setSelectedDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState<string>(() => getLocalDateStr());
   const [bookingModalOpen, setBookingModalOpen] = useState(false);
 
   // Form states for manual booking
   const [clientName, setClientName] = useState('');
   const [clientPhone, setClientPhone] = useState('');
   const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>([]);
-  const [bookingDate, setBookingDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [bookingDate, setBookingDate] = useState(() => getLocalDateStr());
   const [bookingTime, setBookingTime] = useState('');
   const [notes, setNotes] = useState('');
 
@@ -32,7 +32,7 @@ export const Agenda: React.FC = () => {
   const daysList = Array.from({ length: 7 }, (_, i) => {
     const d = new Date();
     d.setDate(today.getDate() + i);
-    const dateStr = d.toISOString().split('T')[0];
+    const dateStr = getLocalDateStr(d);
     const dayNum = d.getDate();
     const dayName = d.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '');
     return { dateStr, dayNum, dayName };

@@ -28,9 +28,10 @@ export const Financeiro: React.FC = () => {
   // Filtered metric sums
   const getPeriodRevenue = (days: number) => {
     const limitDate = new Date();
+    limitDate.setHours(0, 0, 0, 0);
     limitDate.setDate(limitDate.getDate() - days);
     return inputs
-      .filter((t) => new Date(t.date) >= limitDate)
+      .filter((t) => new Date(t.date + 'T00:00:00') >= limitDate)
       .reduce((acc, t) => acc + t.amount, 0);
   };
 
