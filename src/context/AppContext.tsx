@@ -106,10 +106,10 @@ const defaultConfig: AgendaConfig = {
   toleranceTime: 10, // 10 minutes
   notificationTime: 10, // 10 minutes before ending
   shopName: 'Barbearia Sr. Miranda',
-  whatsapp: '11988887777',
-  instagram: '@barbeariasrmiranda',
-  address: 'Rua Augusta, 1234 - Consolação, São Paulo',
-  pixKey: '11988887777'
+  whatsapp: '',
+  instagram: '',
+  address: '',
+  pixKey: ''
 };
 // Barber access credentials (in production these would be server-validated)
 const BARBER_EMAIL = 'miranda@barbeariasrmiranda.com.br';
@@ -215,6 +215,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const updatePromotion = (promo: Promotion | null) => {
     setPromotion(promo);
+    saveToPersistentCloud(config, services, appointments, promo);
   };
 
   useEffect(() => {
@@ -339,6 +340,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => clearInterval(interval);
   }, [activeAppointmentId, appointments, toleranceTimer, nextAppointmentIdForTolerance, config, notifiedAppIds]);
 
+  // Master Cloud Database Config
+  const MASTER_BLOB_ID = '019f9b6b-7487-79f9-9a50-43fc93ed5dd4';
+  const MASTER_BLOB_URL = `https://jsonblob.com/api/jsonBlob/${MASTER_BLOB_ID}`;
+
   // Helper to broadcast changes to Cloud Sync Channel (ntfy.sh)
   const broadcastCloudMessage = (payload: any) => {
     try {
@@ -349,6 +354,42 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }).catch((err) => console.error('Cloud broadcast error:', err));
     } catch (e) {
       console.error(e);
+    }
+  };
+
+  // Save changes to persistent Cloud DB so ANY new device or client sees updated prices, address and settings
+  const saveToPersistentCloud = (
+    newConfig?: AgendaConfig,
+    newServices?: typeof services,
+    newAppointments?: Appointment[],
+    newPromotion?: Promotion | null
+  ) => {
+    try {
+      const payloadToSave = {
+        config: newConfig || config,
+        services: newServices || services,
+        appointments: newAppointments || appointments,
+        promotion: newPromotion !== undefined ? newPromotion : promotion,
+        updatedAt: new Date().toISOString()
+      };
+
+      // 1. Save permanently to JSONBlob cloud database
+      fetch(MASTER_BLOB_URL, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify(payloadToSave)
+      }).catch((err) => console.error('Cloud persistent PUT error:', err));
+
+      // 2. Broadcast via ntfy.sh for microsecond SSE sync to all connected clients
+      broadcastCloudMessage({
+        type: 'SYNC_FULL',
+        config: payloadToSave.config,
+        services: payloadToSave.services,
+        appointments: payloadToSave.appointments,
+        promotion: payloadToSave.promotion
+      });
+    } catch (e) {
+      console.error('saveToPersistentCloud exception:', e);
     }
   };
 
@@ -373,6 +414,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } else if (payload.type === 'SYNC_CONFIG' && payload.config) {
       setConfig(payload.config);
       localStorage.setItem('barber_config', JSON.stringify(payload.config));
+    } else if (payload.type === 'SYNC_FULL') {
+      if (payload.config) {
+        setConfig(payload.config);
+        localStorage.setItem('barber_config', JSON.stringify(payload.config));
+      }
+      if (Array.isArray(payload.services)) {
+        setServices(payload.services);
+        localStorage.setItem('barber_services', JSON.stringify(payload.services));
+      }
+      if (Array.isArray(payload.appointments)) {
+        setAppointments(payload.appointments);
+        localStorage.setItem('barber_appointments', JSON.stringify(payload.appointments));
+      }
+      if (payload.promotion !== undefined) {
+        setPromotion(payload.promotion);
+        if (payload.promotion) localStorage.setItem('barber_promotion', JSON.stringify(payload.promotion));
+        else localStorage.removeItem('barber_promotion');
+      }
     }
   };
 
@@ -380,32 +439,60 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     const syncChannel = 'barbearia_sr_miranda_sync_v2';
 
-    const fetchLatestData = () => {
-      fetch(`https://ntfy.sh/${syncChannel}/json?poll=1`)
-        .then((res) => res.text())
-        .then((text) => {
-          if (!text) return;
-          const lines = text.trim().split('\n');
-          lines.forEach((line) => {
-            try {
-              const data = JSON.parse(line);
-              if (data.message) {
-                const payload = JSON.parse(data.message);
-                handleCloudPayload(payload);
-              }
-            } catch (e) {
-              // ignore
-            }
-          });
+    // Fetch from persistent cloud database (JSONBlob)
+    const fetchPersistentCloudState = () => {
+      fetch(MASTER_BLOB_URL)
+        .then((res) => {
+          if (!res.ok) return null;
+          return res.json();
         })
-        .catch((err) => console.error('Catchup poll error:', err));
+        .then((data) => {
+          if (!data) return;
+          if (data.config) {
+            setConfig((prev) => {
+              if (JSON.stringify(prev) !== JSON.stringify(data.config)) {
+                localStorage.setItem('barber_config', JSON.stringify(data.config));
+                return data.config;
+              }
+              return prev;
+            });
+          }
+          if (Array.isArray(data.services) && data.services.length > 0) {
+            setServices((prev) => {
+              if (JSON.stringify(prev) !== JSON.stringify(data.services)) {
+                localStorage.setItem('barber_services', JSON.stringify(data.services));
+                return data.services;
+              }
+              return prev;
+            });
+          }
+          if (Array.isArray(data.appointments)) {
+            setAppointments((prev) => {
+              if (JSON.stringify(prev) !== JSON.stringify(data.appointments)) {
+                localStorage.setItem('barber_appointments', JSON.stringify(data.appointments));
+                return data.appointments;
+              }
+              return prev;
+            });
+          }
+          if (data.promotion !== undefined) {
+            setPromotion((prev) => {
+              if (JSON.stringify(prev) !== JSON.stringify(data.promotion)) {
+                if (data.promotion) localStorage.setItem('barber_promotion', JSON.stringify(data.promotion));
+                else localStorage.removeItem('barber_promotion');
+                return data.promotion;
+              }
+              return prev;
+            });
+          }
+        })
+        .catch((err) => console.error('Cloud persistent GET error:', err));
     };
 
-    // 1. Initial catch-up poll and fast 3s polling fallback
-    fetchLatestData();
-    const pollInterval = setInterval(fetchLatestData, 3000);
+    fetchPersistentCloudState();
+    const persistentInterval = setInterval(fetchPersistentCloudState, 4000);
 
-    // 2. Real-time stream via Server-Sent Events (SSE)
+    // Real-time stream via Server-Sent Events (SSE)
     let eventSource: EventSource | null = null;
     try {
       eventSource = new EventSource(`https://ntfy.sh/${syncChannel}/sse`);
@@ -425,7 +512,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     return () => {
-      clearInterval(pollInterval);
+      clearInterval(persistentInterval);
       if (eventSource) eventSource.close();
     };
   }, []);
@@ -476,7 +563,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
     setServices((prev) => {
       const next = [...prev, newService];
-      broadcastCloudMessage({ type: 'SYNC_SERVICES', services: next });
+      saveToPersistentCloud(config, next, appointments, promotion);
       return next;
     });
   };
@@ -484,7 +571,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const updateService = (id: string, updated: Partial<typeof services[0]>) => {
     setServices((prev) => {
       const next = prev.map((s) => (s.id === id ? { ...s, ...updated } : s));
-      broadcastCloudMessage({ type: 'SYNC_SERVICES', services: next });
+      saveToPersistentCloud(config, next, appointments, promotion);
       return next;
     });
   };
@@ -492,7 +579,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const deleteService = (id: string) => {
     setServices((prev) => {
       const next = prev.filter((s) => s.id !== id);
-      broadcastCloudMessage({ type: 'SYNC_SERVICES', services: next });
+      saveToPersistentCloud(config, next, appointments, promotion);
       return next;
     });
   };
@@ -715,14 +802,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const updateConfig = (updatedConfig: Partial<AgendaConfig>) => {
     setConfig((prev) => {
       const next = { ...prev, ...updatedConfig };
-      broadcastCloudMessage({ type: 'SYNC_CONFIG', config: next });
+      saveToPersistentCloud(next, services, appointments, promotion);
       return next;
     });
   };
 
   const syncAllDataToCloud = () => {
-    broadcastCloudMessage({ type: 'SYNC_CONFIG', config });
-    broadcastCloudMessage({ type: 'SYNC_SERVICES', services });
+    saveToPersistentCloud(config, services, appointments, promotion);
   };
 
   const dismissNotification = () => {

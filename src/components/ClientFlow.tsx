@@ -203,7 +203,7 @@ export const ClientFlow: React.FC = () => {
 
   const getPixCode = () => {
     const amountFormatted = totalValue.toFixed(2);
-    const key = config.pixKey || '11988887777';
+    const key = config.pixKey || '';
     const keyLen = String(key.length).padStart(2, '0');
     const merchantInfo = `0014br.gov.bcb.pix01${keyLen}${key}`;
     const merchantInfoLen = String(merchantInfo.length).padStart(2, '0');
@@ -913,9 +913,11 @@ export const ClientFlow: React.FC = () => {
                 📍 {config.address}
               </p>
             )}
-            <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '6px' }}>
-              Instagram: {config.instagram || '@barbeariasrmiranda'}
-            </p>
+            {config.instagram && (
+              <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '6px' }}>
+                Instagram: {config.instagram}
+              </p>
+            )}
           </div>
 
           <button

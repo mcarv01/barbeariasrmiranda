@@ -16,18 +16,18 @@ export const Configuracoes: React.FC = () => {
 
   // Shop details form
   const [shopName, setShopName] = useState(config.shopName || 'Barbearia Sr. Miranda');
-  const [whatsapp, setWhatsapp] = useState(config.whatsapp || '11988887777');
-  const [instagram, setInstagram] = useState(config.instagram || '@barbeariasrmiranda');
-  const [address, setAddress] = useState(config.address || 'Rua Augusta, 1234 - Consolação, São Paulo');
-  const [pixKey, setPixKey] = useState(config.pixKey || '11988887777');
+  const [whatsapp, setWhatsapp] = useState(config.whatsapp || '');
+  const [instagram, setInstagram] = useState(config.instagram || '');
+  const [address, setAddress] = useState(config.address || '');
+  const [pixKey, setPixKey] = useState(config.pixKey || '');
 
   // Sync form details when config is updated or reset
   useEffect(() => {
     setShopName(config.shopName || 'Barbearia Sr. Miranda');
-    setWhatsapp(config.whatsapp || '11988887777');
-    setInstagram(config.instagram || '@barbeariasrmiranda');
-    setAddress(config.address || 'Rua Augusta, 1234 - Consolação, São Paulo');
-    setPixKey(config.pixKey || '11988887777');
+    setWhatsapp(config.whatsapp || '');
+    setInstagram(config.instagram || '');
+    setAddress(config.address || '');
+    setPixKey(config.pixKey || '');
   }, [config.shopName, config.whatsapp, config.instagram, config.address, config.pixKey]);
 
   // Agenda settings form
