@@ -118,12 +118,12 @@ const BARBER_PASSWORD = 'Miranda@2025';
 
 // Initial services
 const defaultServices = [
-  { id: '1', name: 'Corte Tradicional', category: 'Corte', price: 40, duration: 30, color: '#D4AF37', status: 'active' as const },
-  { id: '2', name: 'Barba Premium', category: 'Barba', price: 30, duration: 20, color: '#C5A059', status: 'active' as const },
+  { id: '1', name: 'Corte Tradicional', category: 'Corte', price: 30, duration: 30, color: '#D4AF37', status: 'active' as const },
+  { id: '2', name: 'Barba Premium', category: 'Barba', price: 25, duration: 20, color: '#C5A059', status: 'active' as const },
   { id: '3', name: 'Pigmentação', category: 'Acabamento', price: 20, duration: 15, color: '#E74C3C', status: 'active' as const },
-  { id: '4', name: 'Corte + Barba', category: 'Combo', price: 65, duration: 50, color: '#9B59B6', status: 'active' as const },
+  { id: '4', name: 'Corte + Barba', category: 'Combo', price: 50, duration: 50, color: '#9B59B6', status: 'active' as const },
   { id: '5', name: 'Sobrancelha', category: 'Estética', price: 15, duration: 10, color: '#2ECC71', status: 'active' as const },
-  { id: '6', name: 'Hidratação Capilar', category: 'Tratamento', price: 35, duration: 25, color: '#3498DB', status: 'active' as const }
+  { id: '6', name: 'Hidratação Capilar', category: 'Tratamento', price: 30, duration: 25, color: '#3498DB', status: 'active' as const }
 ];
 
 // Initial mock clients
@@ -340,9 +340,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => clearInterval(interval);
   }, [activeAppointmentId, appointments, toleranceTimer, nextAppointmentIdForTolerance, config, notifiedAppIds]);
 
-  // Master Cloud Database Config
-  const MASTER_BLOB_ID = '019f9b6b-7487-79f9-9a50-43fc93ed5dd4';
-  const MASTER_BLOB_URL = `https://jsonblob.com/api/jsonBlob/${MASTER_BLOB_ID}`;
+  // Master Cloud Database Config (dynamic ID recovery)
+  const getMasterBlobId = () => {
+    return localStorage.getItem('barber_master_blob_id') || '019fab45-bd75-7c72-b99d-b6aeac99db89';
+  };
 
   // Helper to broadcast changes to Cloud Sync Channel (ntfy.sh)
   const broadcastCloudMessage = (payload: any) => {
@@ -357,8 +358,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  // Create a fresh cloud blob if the previous one expired (404)
+  const createAndSaveNewBlob = async (payloadToSave: any) => {
+    try {
+      const res = await fetch('https://jsonblob.com/api/jsonBlob', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify(payloadToSave)
+      });
+      const location = res.headers.get('location');
+      if (location) {
+        const newBlobId = location.split('/').pop();
+        if (newBlobId) {
+          localStorage.setItem('barber_master_blob_id', newBlobId);
+          console.log('Criado novo Blob mestre na nuvem:', newBlobId);
+          broadcastCloudMessage({ type: 'SYNC_BLOB_ID', blobId: newBlobId });
+        }
+      }
+    } catch (err) {
+      console.error('Erro ao criar novo Blob de nuvem:', err);
+    }
+  };
+
   // Save changes to persistent Cloud DB so ANY new device or client sees updated prices, address and settings
-  const saveToPersistentCloud = (
+  const saveToPersistentCloud = async (
     newConfig?: AgendaConfig,
     newServices?: typeof services,
     newAppointments?: Appointment[],
@@ -373,12 +396,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updatedAt: new Date().toISOString()
       };
 
-      // 1. Save permanently to JSONBlob cloud database
-      fetch(MASTER_BLOB_URL, {
+      const currentBlobId = getMasterBlobId();
+      const blobUrl = `https://jsonblob.com/api/jsonBlob/${currentBlobId}`;
+
+      // 1. Try PUT to current blob
+      const res = await fetch(blobUrl, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
         body: JSON.stringify(payloadToSave)
-      }).catch((err) => console.error('Cloud persistent PUT error:', err));
+      }).catch(() => null);
+
+      if (!res || !res.ok) {
+        // Blob not found or PUT failed -> Automatically create a new active blob!
+        await createAndSaveNewBlob(payloadToSave);
+      }
 
       // 2. Broadcast via ntfy.sh for microsecond SSE sync to all connected clients
       broadcastCloudMessage({
@@ -395,7 +426,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const handleCloudPayload = (payload: any) => {
     if (!payload || !payload.type) return;
-    if (payload.type === 'NEW_APPOINTMENT' && payload.appointment) {
+    if (payload.type === 'SYNC_BLOB_ID' && payload.blobId) {
+      localStorage.setItem('barber_master_blob_id', payload.blobId);
+    } else if (payload.type === 'NEW_APPOINTMENT' && payload.appointment) {
       setAppointments((prev) => {
         if (prev.some((a) => a.id === payload.appointment.id)) return prev;
         return [...prev, payload.appointment];
@@ -439,11 +472,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     const syncChannel = 'barbearia_sr_miranda_sync_v2';
 
-    // Fetch from persistent cloud database (JSONBlob)
+    // Fetch from persistent cloud database (JSONBlob with fallback to ntfy cache)
     const fetchPersistentCloudState = () => {
-      fetch(MASTER_BLOB_URL)
+      const currentBlobId = getMasterBlobId();
+      fetch(`https://jsonblob.com/api/jsonBlob/${currentBlobId}`)
         .then((res) => {
-          if (!res.ok) return null;
+          if (!res.ok) {
+            // Fallback: fetch cached payload from ntfy topic if blob returns 404
+            return fetch(`https://ntfy.sh/${syncChannel}/json?poll=1`)
+              .then((r) => (r.ok ? r.text() : ''))
+              .then((text) => {
+                if (!text) return null;
+                const lines = text.trim().split('\n');
+                for (let i = lines.length - 1; i >= 0; i--) {
+                  try {
+                    const parsed = JSON.parse(lines[i]);
+                    if (parsed.message) {
+                      const msgPayload = JSON.parse(parsed.message);
+                      if (msgPayload.type === 'SYNC_FULL') return msgPayload;
+                    }
+                  } catch (e) {}
+                }
+                return null;
+              })
+              .catch(() => null);
+          }
           return res.json();
         })
         .then((data) => {
